@@ -250,38 +250,59 @@ def atualizar_edicao_ativa(nova_edicao: str) -> str:
         return 'sucesso'
 
 def processar_importacao_csv(linhas: list, id_edicao: str) -> tuple:
-    sucessos, erros = 0, 0
+    sucessos = 0
+    erros = 0
+    
+    # Supondo que você use obter_conexao() em um bloco with global ou por lote
     with obter_conexao() as cursor:
-        id_real_edicao = _obter_id_edicao_por_nome(cursor, id_edicao)
-        
         for linha in linhas:
-            if len(linha) < 2: continue
+            if not linha or len(linha) < 2:
+                erros += 1
+                continue
+                
             matricula = str(linha[0]).strip()
             nome = str(linha[1]).strip()
-            email = str(linha[2]).strip() if len(linha) > 2 else ""
-
-            if not matricula.isdigit() or len(matricula) != 10:
-                erros += 1; continue
-
-            cursor.execute("SELECT id_usuario FROM alunos WHERE matricula = %s", (matricula,))
-            if cursor.fetchone():
-                erros += 1; continue
-
-            chave_unica = str(uuid.uuid4())
-            qr_token = str(uuid.uuid4())
-            senha_hash = generate_password_hash(matricula)
-
-            cursor.execute("""
-                INSERT INTO usuarios (nome, email_institucional, senha, tipo, status_conta, origem_cadastro, chave_acesso)
-                VALUES (%s, %s, %s, 'aluno', 'pendente', 'importacao_csv', %s) RETURNING id
-            """, (nome, email, senha_hash, chave_unica))
-            novo_id = cursor.fetchone()['id']
+            # Se houver a coluna opcional de e-mail no CSV
+            email = str(linha[2]).strip() if len(linha) > 2 else f"{matricula}@substituir.edu.br"
             
-            cursor.execute("""
-                INSERT INTO alunos (id_usuario, matricula, origem_cadastro, qr_token) 
-                VALUES (%s, %s, 'importacao_csv', %s)
-            """, (novo_id, matricula, qr_token))
-            sucessos += 1
+            # Validações básicas para evitar lixo no banco
+            if not matricula.isdigit() or len(matricula) != 10:
+                erros += 1
+                continue
+
+            try:
+                # 1. Primeiro verifica duplicidade global de login/matrícula
+                cursor.execute("SELECT id FROM usuarios WHERE login = %s", (matricula,))
+                if cursor.fetchone():
+                    erros += 1
+                    continue
+
+                # Geradores de tokens e senhas padrão criptografadas
+                senha_padrao_hash = generate_password_hash(matricula)
+                chave_unica = str(uuid.uuid4())
+                qr_token_novo = str(uuid.uuid4())
+
+                # 2. INSERÇÃO CORRETA NA TABELA 'usuarios' (Sem a coluna de origem)
+                cursor.execute("""
+                    INSERT INTO usuarios (nome, login, email_institucional, senha, tipo, status_conta, chave_acesso)
+                    VALUES (%s, %s, %s, %s, 'aluno', 'pendente', %s)
+                    RETURNING id
+                """, (nome, matricula, email, senha_padrao_hash, chave_unica))
+                
+                novo_id_usuario = cursor.fetchone()['id']
+
+                # 3. INSERÇÃO CORRETA NA TABELA 'alunos' (Aqui sim fica a origem_cadastro!)
+                cursor.execute("""
+                    INSERT INTO alunos (id_usuario, matricula, origem_cadastro, qr_token)
+                    VALUES (%s, %s, 'csv', %s)
+                """, (novo_id_usuario, matricula, qr_token_novo))
+
+                sucessos += 1
+
+            except Exception:
+                erros += 1
+                continue
+
     return sucessos, erros
 
 def obter_relatorio_geral_presencas(id_edicao: str) -> list:
