@@ -172,18 +172,20 @@ def atualizar_usuario_admin(id_usuario: int, nome: str, tipo: str, cursos_ids: l
                 ON CONFLICT (id_usuario) DO UPDATE SET matricula = EXCLUDED.matricula
             """, (id_usuario, identificador, str(uuid.uuid4())))
 
-            for c_id in cursos_ids:
-                cursor.execute("INSERT INTO usuarios_cursos (id_aluno, id_curso) VALUES (%s, %s)", (id_usuario, c_id))
+            if cursos_ids:
+                for c_id in cursos_ids:
+                    cursor.execute("INSERT INTO usuarios_cursos (id_aluno, id_curso) VALUES (%s, %s)", (id_usuario, c_id))
             
             cursor.execute("SELECT id_projeto, presenca FROM inscricoes WHERE id_aluno = %s AND id_edicao = %s", (id_usuario, id_real_edicao))
             atuais = cursor.fetchall()
             atuais_dict = {row['id_projeto']: row['presenca'] for row in atuais}
-            selecionados = [int(x) for x in src_ids] if (inscricoes_ids := inscricoes_ids) else []
-            selecionados = [int(x) for x in inscricoes_ids]
+            
+            selecionados = [int(x) for x in inscricoes_ids] if inscricoes_ids else []
             
             for p_id, presenca in atuais_dict.items():
                 if p_id not in selecionados and presenca == 0:
                     cursor.execute("DELETE FROM inscricoes WHERE id_aluno = %s AND id_projeto = %s AND id_edicao = %s", (id_usuario, p_id, id_real_edicao))
+            
             for p_id in selecionados:
                 if p_id not in atuais_dict:
                     cursor.execute("INSERT INTO inscricoes (id_aluno, id_projeto, id_edicao, presenca) VALUES (%s, %s, %s, 0)", (id_usuario, p_id, id_real_edicao))
@@ -195,12 +197,13 @@ def atualizar_usuario_admin(id_usuario: int, nome: str, tipo: str, cursos_ids: l
                 ON CONFLICT (id_usuario) DO UPDATE SET id_corporativo = EXCLUDED.id_corporativo
             """, (id_usuario, identificador))
             
-            for p_id in projetos_ids:
-                cursor.execute("INSERT INTO supervisores_projeto (id_professor, id_projeto) VALUES (%s, %s)", (id_usuario, p_id))
+            if projetos_ids:
+                for p_id in projetos_ids:
+                    cursor.execute("INSERT INTO supervisores_projeto (id_professor, id_projeto) VALUES (%s, %s)", (id_usuario, p_id))
                 
         if reset_senha == 'sim':
             cursor.execute("UPDATE usuarios SET senha = %s, status_conta = 'pendente' WHERE id = %s", (generate_password_hash(identificador), id_usuario))
-
+            
 def alternar_status_usuario(id_usuario: int) -> dict:
     with obter_conexao() as cursor:
         cursor.execute("SELECT ativo, nome FROM usuarios WHERE id = %s", (id_usuario,))
