@@ -203,47 +203,44 @@ def alternar_status_usuario(id_usuario: int) -> dict:
 
 def atualizar_edicao_ativa(nova_edicao: str) -> str:
     """
-    Atualiza a edição ativa no sistema integrando com o histórico existente.
-    Garante que nomes já utilizados tenham seus IDs reaproveitados e impede
-    a reativação do exato ciclo que já se encontra corrente.
+    Valida e atualiza a edição ativa do sistema.
+    Impede estritamente a reutilização de nomes de ciclos passados ou do ciclo atual.
     
     Retorna:
-        'sucesso'   - Ciclo atualizado/virado com sucesso.
-        'ja_ativa'  - O ciclo informado já é o que está ativo no momento.
+        'sucesso'   - Ciclo criado e ativado com sucesso.
+        'ja_ativa'  - O ciclo informado já é o que está rodando no momento.
+        'ja_existe' - O ciclo informado já foi usado no passado e é proibido.
     """
     nova_edicao = str(nova_edicao).strip()
     
     with obter_conexao() as cursor:
-        # 1. Busca o ID correspondente ao ciclo ativo atual para checar duplicidade real
+        # 1. Recupera o ID atual gravado nas configurações globais
         cursor.execute("SELECT valor FROM configuracoes WHERE chave = 'edicao_ativa'")
         config_atual = cursor.fetchone()
         
         if config_atual:
             id_atual = config_atual['valor']
-            # Se for um ID numérico válido, valida se o nome dele é igual ao digitado
+            # Se for um ID válido, busca o nome textual dele para comparar
             if str(id_atual).isdigit():
                 cursor.execute("SELECT nome_edicao FROM edicoes WHERE id = %s", (int(id_atual),))
                 nome_atual = cursor.fetchone()
                 if nome_atual and nome_atual['nome_edicao'] == nova_edicao:
                     return 'ja_ativa'
 
-        # 2. Verifica se este nome de ciclo já existe na tabela 'edicoes'
-        cursor.execute("SELECT id FROM edicoes WHERE nome_edicao = %s", (nova_edicao,))
-        edicao_existente = cursor.fetchone()
-        
-        if edicao_existente:
-            # Se já existe no histórico, reaproveita o ID nativo (Ex: busca o 5 para o '2026.3')
-            id_final = edicao_existente['id']
-        else:
-            # Se for um ciclo inédito (Ex: '2028.1'), cria o registro novo na tabela
-            cursor.execute("""
-                INSERT INTO edicoes (nome_edicao) 
-                VALUES (%s) 
-                RETURNING id
-            """, (nova_edicao,))
-            id_final = cursor.fetchone()['id']
+        # 2. TRAVA RÍGIDA: Verifica se o nome digitado já existe no histórico da tabela 'edicoes'
+        cursor.execute("SELECT 1 FROM edicoes WHERE nome_edicao = %s", (nova_edicao,))
+        if cursor.fetchone():
+            return 'ja_existe'
             
-        # 3. Atualiza a tabela global de configurações gravando o ID de amarração
+        # 3. Se for um nome inédito, insere na tabela 'edicoes' e captura o novo ID gerado
+        cursor.execute("""
+            INSERT INTO edicoes (nome_edicao) 
+            VALUES (%s) 
+            RETURNING id
+        """, (nova_edicao,))
+        id_final = cursor.fetchone()['id']
+            
+        # 4. Atualiza a configuração global apontando para este novo ID
         cursor.execute("""
             UPDATE configuracoes 
             SET valor = %s 

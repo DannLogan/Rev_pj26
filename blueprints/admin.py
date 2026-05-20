@@ -245,19 +245,30 @@ def admin_configuracoes():
             flash("Por favor, informe uma identificação de ciclo válida.", "erro")
             return redirect(url_for('admin.admin_configuracoes'))
             
-        # Executa a regra de validação inteligente do repositório
+        # Executa as regras de validação severas
         resultado = admin_repository.atualizar_edicao_ativa(nova_edicao)
         
         if resultado == 'sucesso':
-            flash(f"Ciclo alterado com sucesso! Edição ativa configurada para: {nova_edicao}.", "sucesso")
+            flash(f"Sucesso! Nova edição iniciada e configurada para: {nova_edicao}.", "sucesso")
         elif resultado == 'ja_ativa':
             flash(f"Atenção: O ciclo '{nova_edicao}' já é a edição corrente ativa no sistema.", "info")
+        elif resultado == 'ja_existe':
+            flash(f"Operação negada: A edição '{nova_edicao}' já foi utilizada anteriormente e não pode ser reativada.", "erro")
             
         return redirect(url_for('admin.admin_configuracoes'))
         
-    # Mantém a exibição amigável trazendo o ID resolvido da tabela 'configuracoes'
-    edicao_ativa = obter_configuracao_global('edicao_ativa')
-    return render_template('admin_configuracoes.html', edicao=edicao_ativa)
+    # CORREÇÃO: Resolve o ID da configuração para exibir o texto amigável na tela
+    id_edicao = obter_configuracao_global('edicao_ativa')
+    texto_edicao = "Não configurado"
+    
+    if id_edicao and str(id_edicao).isdigit():
+        with admin_repository.obter_conexao() as cursor:
+            cursor.execute("SELECT nome_edicao FROM edicoes WHERE id = %s", (int(id_edicao),))
+            resultado = cursor.fetchone()
+            if resultado:
+                texto_edicao = resultado['nome_edicao']
+                
+    return render_template('admin_configuracoes.html', edicao=texto_edicao)
 
 @admin_bp.route('/exportar_presencas')
 @requer_autenticacao
