@@ -22,13 +22,35 @@
             display: flex; 
             flex-direction: column; 
             font-family: 'Segoe UI', system-ui, sans-serif; 
+            overflow-x: hidden;
         }
         .bg-primario-evento { background-color: var(--cor-primaria) !important; }
         .text-primario-evento { color: var(--cor-primaria) !important; }
         .btn-acao-evento { background-color: var(--cor-acao) !important; color: white !important; border: none; }
         .btn-acao-evento:hover { filter: brightness(1.1); }
-        .wrapper { display: flex; width: 100%; align-items: stretch; }
-        #main-content { width: 100%; min-height: 100vh; display: flex; flex-direction: column; }
+        
+        .wrapper { 
+            display: flex; 
+            width: 100%; 
+            align-items: stretch; 
+            position: relative;
+        }
+        
+        /* Regra base para o conteúdo principal */
+        #main-content { 
+            width: 100%; 
+            min-height: 100vh; 
+            display: flex; 
+            flex-direction: column; 
+            transition: all 0.3s ease;
+        }
+        
+        /* CSS 100% Puro: Só aplica o recuo se a classe 'com-sidebar' estiver ativa no wrapper */
+        .wrapper.com-sidebar #main-content {
+            width: calc(100% - 292px);
+            margin-left: 292px;
+        }
+        
         .card { border: none; border-radius: 12px; }
         .animate-fade-in { animation: fadeIn 0.3s ease-in-out; }
         
@@ -43,7 +65,7 @@
 
     {% include 'componentes/_alertas.html' %}
 
-    <div class="wrapper">
+    <div class="wrapper {% if session.get('usuario_id') %}com-sidebar{% endif %}">
         {% if session.get('usuario_id') %}
             {% block sidebar %}
                 {% include 'componentes/_sidebar.html' %}
