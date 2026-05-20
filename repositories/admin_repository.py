@@ -1,5 +1,4 @@
 import uuid
-import csv
 from db import obter_conexao
 from werkzeug.security import generate_password_hash
 
@@ -81,8 +80,8 @@ def listar_usuarios_painel_paginado(busca_matricula: str, tipo_filtro: str, letr
     parametros = []
     
     if busca_matricula:
-        condicoes.append("a.matricula LIKE %s")
-        parametros.append(f"%{busca_matricula}%")
+        condicoes.append("(a.matricula LIKE %s OR p.id_corporativo LIKE %s)")
+        parametros.extend([f"%{busca_matricula}%", f"%{busca_matricula}%"])
     if tipo_filtro:
         condicoes.append("u.tipo = %s")
         parametros.append(tipo_filtro)
@@ -93,9 +92,10 @@ def listar_usuarios_painel_paginado(busca_matricula: str, tipo_filtro: str, letr
     where_clause = " WHERE " + " AND ".join(condicoes) if condicoes else ""
     
     sql_dados = f"""
-        SELECT u.id, u.nome, a.matricula, u.tipo, u.status_conta, u.ativo 
+        SELECT u.id, u.nome, COALESCE(a.matricula, p.id_corporativo) AS matricula, u.tipo, u.status_conta, u.ativo 
         FROM usuarios u 
         LEFT JOIN alunos a ON u.id = a.id_usuario 
+        LEFT JOIN professores p ON u.id = p.id_usuario
         {where_clause}
         ORDER BY u.nome ASC
         LIMIT %s OFFSET %s
@@ -105,6 +105,7 @@ def listar_usuarios_painel_paginado(busca_matricula: str, tipo_filtro: str, letr
         SELECT COUNT(*) as total 
         FROM usuarios u 
         LEFT JOIN alunos a ON u.id = a.id_usuario 
+        LEFT JOIN professores p ON u.id = p.id_usuario
         {where_clause}
     """
     
@@ -142,7 +143,8 @@ def cadastrar_usuario_manual(nome: str, identificador: str, tipo: str, senha_has
         elif tipo in ['professor', 'admin']:
             cursor.execute("""
                 INSERT INTO professores (id_usuario, id_corporativo) 
-                VALUES (%s, %s) ON CONFLICT DO NOTHING
+                VALUES (%s, %s)
+                ON CONFLICT (id_usuario) DO UPDATE SET id_corporativo = EXCLUDED.id_corporativo
             """, (novo_id, identificador))
             
             for p_id in list(set(projetos)):
@@ -155,7 +157,7 @@ def obter_lista_inscricoes_aluno(id_aluno: int, id_edicao: str) -> list:
         cursor.execute(sql, (id_aluno, id_real_edicao))
         return [row['id_projeto'] for row in cursor.fetchall()]
 
-def atualizar_usuario_admin(id_usuario: int, nome: str, tipo: str, cursos_ids: list, projetos_ids: list, inscricoes_ids: list, id_edicao: str, reset_senha: str, matricula: str) -> None:
+def atualizar_usuario_admin(id_usuario: int, nome: str, tipo: str, cursos_ids: list, projetos_ids: list, inscricoes_ids: list, id_edicao: str, reset_senha: str, identificador: str) -> None:
     with obter_conexao() as cursor:
         id_real_edicao = _obter_id_edicao_por_nome(cursor, id_edicao)
         
@@ -164,12 +166,19 @@ def atualizar_usuario_admin(id_usuario: int, nome: str, tipo: str, cursos_ids: l
         cursor.execute("DELETE FROM supervisores_projeto WHERE id_professor = %s", (id_usuario,))
         
         if tipo == 'aluno':
+            cursor.execute("""
+                INSERT INTO alunos (id_usuario, matricula, origem_cadastro, qr_token)
+                VALUES (%s, %s, 'manual', %s)
+                ON CONFLICT (id_usuario) DO UPDATE SET matricula = EXCLUDED.matricula
+            """, (id_usuario, identificador, str(uuid.uuid4())))
+
             for c_id in cursos_ids:
                 cursor.execute("INSERT INTO usuarios_cursos (id_aluno, id_curso) VALUES (%s, %s)", (id_usuario, c_id))
             
             cursor.execute("SELECT id_projeto, presenca FROM inscricoes WHERE id_aluno = %s AND id_edicao = %s", (id_usuario, id_real_edicao))
             atuais = cursor.fetchall()
             atuais_dict = {row['id_projeto']: row['presenca'] for row in atuais}
+            selecionados = [int(x) for x in src_ids] if (inscricoes_ids := inscricoes_ids) else []
             selecionados = [int(x) for x in inscricoes_ids]
             
             for p_id, presenca in atuais_dict.items():
@@ -182,14 +191,15 @@ def atualizar_usuario_admin(id_usuario: int, nome: str, tipo: str, cursos_ids: l
         elif tipo in ['professor', 'admin']:
             cursor.execute("""
                 INSERT INTO professores (id_usuario, id_corporativo) 
-                VALUES (%s, %s) ON CONFLICT DO NOTHING
-            """, (id_usuario, matricula))
+                VALUES (%s, %s) 
+                ON CONFLICT (id_usuario) DO UPDATE SET id_corporativo = EXCLUDED.id_corporativo
+            """, (id_usuario, identificador))
             
             for p_id in projetos_ids:
                 cursor.execute("INSERT INTO supervisores_projeto (id_professor, id_projeto) VALUES (%s, %s)", (id_usuario, p_id))
                 
         if reset_senha == 'sim':
-            cursor.execute("UPDATE usuarios SET senha = %s, status_conta = 'pendente' WHERE id = %s", (generate_password_hash(matricula), id_usuario))
+            cursor.execute("UPDATE usuarios SET senha = %s, status_conta = 'pendente' WHERE id = %s", (generate_password_hash(identificador), id_usuario))
 
 def alternar_status_usuario(id_usuario: int) -> dict:
     with obter_conexao() as cursor:
@@ -202,37 +212,24 @@ def alternar_status_usuario(id_usuario: int) -> dict:
     return None
 
 def atualizar_edicao_ativa(nova_edicao: str) -> str:
-    """
-    Valida e atualiza a edição ativa do sistema.
-    Impede estritamente a reutilização de nomes de ciclos passados ou do ciclo atual.
-    
-    Retorna:
-        'sucesso'   - Ciclo criado e ativado com sucesso.
-        'ja_ativa'  - O ciclo informado já é o que está rodando no momento.
-        'ja_existe' - O ciclo informado já foi usado no passado e é proibido.
-    """
     nova_edicao = str(nova_edicao).strip()
     
     with obter_conexao() as cursor:
-        # 1. Recupera o ID atual gravado nas configurações globais
         cursor.execute("SELECT valor FROM configuracoes WHERE chave = 'edicao_ativa'")
         config_atual = cursor.fetchone()
         
         if config_atual:
             id_atual = config_atual['valor']
-            # Se for um ID válido, busca o nome textual dele para comparar
             if str(id_atual).isdigit():
                 cursor.execute("SELECT nome_edicao FROM edicoes WHERE id = %s", (int(id_atual),))
                 nome_atual = cursor.fetchone()
                 if nome_atual and nome_atual['nome_edicao'] == nova_edicao:
                     return 'ja_ativa'
 
-        # 2. TRAVA RÍGIDA: Verifica se o nome digitado já existe no histórico da tabela 'edicoes'
         cursor.execute("SELECT 1 FROM edicoes WHERE nome_edicao = %s", (nova_edicao,))
         if cursor.fetchone():
             return 'ja_existe'
             
-        # 3. Se for um nome inédito, insere na tabela 'edicoes' e captura o novo ID gerado
         cursor.execute("""
             INSERT INTO edicoes (nome_edicao) 
             VALUES (%s) 
@@ -240,7 +237,6 @@ def atualizar_edicao_ativa(nova_edicao: str) -> str:
         """, (nova_edicao,))
         id_final = cursor.fetchone()['id']
             
-        # 4. Atualiza a configuração global apontando para este novo ID
         cursor.execute("""
             UPDATE configuracoes 
             SET valor = %s 
@@ -253,7 +249,6 @@ def processar_importacao_csv(linhas: list, id_edicao: str) -> tuple:
     sucessos = 0
     erros = 0
     
-    # Supondo que você use obter_conexao() em um bloco with global ou por lote
     with obter_conexao() as cursor:
         for linha in linhas:
             if not linha or len(linha) < 2:
@@ -262,27 +257,22 @@ def processar_importacao_csv(linhas: list, id_edicao: str) -> tuple:
                 
             matricula = str(linha[0]).strip()
             nome = str(linha[1]).strip()
-            # Se houver a coluna opcional de e-mail no CSV
             email = str(linha[2]).strip() if len(linha) > 2 else f"{matricula}@substituir.edu.br"
             
-            # Validações básicas para evitar lixo no banco
             if not matricula.isdigit() or len(matricula) != 10:
                 erros += 1
                 continue
 
             try:
-                # 1. Primeiro verifica duplicidade global de login/matrícula
                 cursor.execute("SELECT id FROM usuarios WHERE login = %s", (matricula,))
                 if cursor.fetchone():
                     erros += 1
                     continue
 
-                # Geradores de tokens e senhas padrão criptografadas
                 senha_padrao_hash = generate_password_hash(matricula)
                 chave_unica = str(uuid.uuid4())
                 qr_token_novo = str(uuid.uuid4())
 
-                # 2. INSERÇÃO CORRETA NA TABELA 'usuarios' (Sem a coluna de origem)
                 cursor.execute("""
                     INSERT INTO usuarios (nome, login, email_institucional, senha, tipo, status_conta, chave_acesso)
                     VALUES (%s, %s, %s, %s, 'aluno', 'pendente', %s)
@@ -291,7 +281,6 @@ def processar_importacao_csv(linhas: list, id_edicao: str) -> tuple:
                 
                 novo_id_usuario = cursor.fetchone()['id']
 
-                # 3. INSERÇÃO CORRETA NA TABELA 'alunos' (Aqui sim fica a origem_cadastro!)
                 cursor.execute("""
                     INSERT INTO alunos (id_usuario, matricula, origem_cadastro, qr_token)
                     VALUES (%s, %s, 'csv', %s)

@@ -144,44 +144,57 @@ def admin_novo_usuario():
     造型_projetos = admin_repository.listar_todos_projetos()
     return render_template('admin_form_usuario.html', cursos=cursos, projetos=造型_projetos, form_data=request.form, acao="Novo")
 
-@admin_bp.route('/usuarios/editar/<int:id>', methods=['GET', 'POST'])
+@admin_bp.route('/usuario/editar/<int:id_usuario>', methods=['GET', 'POST'])
 @requer_autenticacao
 @requer_perfil('admin')
-def admin_editar_usuario(id):
-    usuario = auth_repository.buscar_usuario_por_id(id)
+def editar_usuario(id_usuario):
+    with admin_repository.obter_conexao() as cursor:
+        # 1. Busca os dados base do usuário primeiro
+        cursor.execute("""
+            SELECT id, nome, login, email_institucional, tipo, status_conta 
+            FROM usuarios 
+            WHERE id = %s
+        """, (id_usuario,))
+        usuario = cursor.fetchone()
+
     if not usuario:
         flash("Usuário não encontrado.", "erro")
-        return redirect(url_for('admin.admin_gestao_usuarios'))
+        return redirect(url_for('admin.listar_usuarios'))
 
-    # REMOVIDO INT() - Passa a string do ciclo
-    id_edicao = obter_configuracao_global('edicao_ativa')
+    # 2. Resolução do identificador com base no tipo real do usuário
+    identificador_valor = ""
+    with admin_repository.obter_conexao() as cursor:
+        if usuario['tipo'] == 'aluno':
+            cursor.execute("SELECT matricula FROM alunos WHERE id_usuario = %s", (id_usuario,))
+            res = cursor.fetchone()
+            if res:
+                identificador_valor = res['matricula']
+        else:
+            # Professor ou Admin buscam o id_corporativo na tabela professores
+            cursor.execute("SELECT id_corporativo FROM professores WHERE id_usuario = %s", (id_usuario,))
+            res = cursor.fetchone()
+            if res:
+                identificador_valor = res['id_corporativo']
 
     if request.method == 'POST':
-        nome = request.form.get('nome', '').strip()
-        if not re.match(r'^[A-Za-zÀ-ÿ\s]+$', nome):
-            flash("Erro: O nome deve conter apenas letras.", "erro")
-        else:
-            try:
-                admin_repository.atualizar_usuario_admin(
-                    id, nome, request.form.get('tipo'), request.form.getlist('cursos_ids'),
-                    request.form.getlist('projetos_ids'), request.form.getlist('inscricoes_ids'),
-                    id_edicao, request.form.get('reset_senha'), usuario['matricula']
-                )
-                flash(f"Usuário {nome} modificado!", "sucesso")
-                return redirect(url_for('admin.admin_gestao_usuarios'))
-            except Exception as e:
-                flash(f"Erro técnico: {e}", "erro")
-
-    cursos = admin_repository.listar_todos_cursos()
-    projetos = admin_repository.listar_todos_projetos()
-    lista_cursos_ids = auth_repository.buscar_cursos_usuario(id)
-    lista_projetos_ids = [row['id'] for row in admin_repository.obter_projetos_vinculados_admin(id)]
-    lista_inscricoes_ids = admin_repository.obter_lista_inscricoes_aluno(id, id_edicao)
+        form_data = request.form
+        # NOTA: O 'tipo' (perfil) não é capturado do formulário pois está disabled (imutável)
+        
+        admin_repository.atualizar_usuario_sistema(
+            id_usuario=id_usuario,
+            nome=form_data.get('nome', '').strip(),
+            email=form_data.get('email', '').strip(),
+            login=form_data.get('login', '').strip(),
+            identificador=form_data.get('identificador', '').strip(),
+            tipo_original=usuario['tipo'] # Repassa o tipo original que é permanente
+        )
+        flash("Usuário atualizado com sucesso!", "sucesso")
+        return redirect(url_for('admin.listar_usuarios'))
 
     return render_template(
-        'admin_form_usuario.html', usuario=usuario, cursos=cursos, projetos=projetos,
-        lista_cursos_ids=lista_cursos_ids, lista_projetos_ids=lista_projetos_ids,
-        lista_inscricoes_ids=lista_inscricoes_ids, form_data=request.form, acao="Editar"
+        'admin_editar_usuario.html', 
+        usuario=usuario, 
+        identificador=identificador_valor
     )
 
 @admin_bp.route('/usuarios/toggle/<int:id>')

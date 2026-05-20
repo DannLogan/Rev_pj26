@@ -20,30 +20,50 @@
                 {{ ui.campo_input(nome="nome", label="Nome Completo", valor=usuario.nome if usuario else form_data.get('nome', '')) }}
                 
                 <div class="mb-3">
-                    <label class="form-label fw-bold text-secondary">Identificador Acadêmico (RA/Matrícula)</label>
+                    <label class="form-label fw-bold text-secondary">Perfil de Acesso do Usuário</label>
                     {% if acao == 'Editar' %}
-                        <input type="text" value="{{ usuario.matricula }}" disabled class="form-control bg-light text-muted font-monospace">
-                        <input type="hidden" name="matricula" value="{{ usuario.matricula }}">
+                        <input type="hidden" name="tipo" value="{{ usuario.tipo }}">
+                        <select id="select-tipo" disabled class="form-select bg-light text-muted" style="cursor: not-allowed;">
+                            <option value="aluno" {% if usuario.tipo == 'aluno' %}selected{% endif %}>Aluno</option>
+                            <option value="professor" {% if usuario.tipo == 'professor' %}selected{% endif %}>Professor / Orientador</option>
+                            <option value="admin" {% if usuario.tipo == 'admin' %}selected{% endif %}>Administrador Geral</option>
+                        </select>
+                        <small class="text-muted d-block mt-1"><i class="bi bi-info-circle"></i> O perfil deste usuário é permanente.</small>
                     {% else %}
-                        <input type="text" name="matricula" id="input-matricula" value="{{ form_data.get('matricula', '') }}" required class="form-control shadow-none">
-                        <small id="dica-matricula" class="text-muted d-block mt-1">Para alunos, insira os 10 dígitos numéricos do RA.</small>
+                        <select name="tipo" id="select-tipo" required class="form-select shadow-none">
+                            <option value="aluno" {% if form_data.get('tipo') == 'aluno' %}selected{% endif %}>Aluno</option>
+                            <option value="professor" {% if form_data.get('tipo') == 'professor' %}selected{% endif %}>Professor / Orientador</option>
+                            <option value="admin" {% if form_data.get('tipo') == 'admin' %}selected{% endif %}>Administrador Geral</option>
+                        </select>
                     {% endif %}
                 </div>
 
                 <div class="mb-4">
-                    <label class="form-label fw-bold text-secondary">Perfil de Acesso do Usuário</label>
-                    {% if acao == 'Editar' and usuario.tipo == 'aluno' %}
-                        <input type="hidden" name="tipo" value="aluno">
-                        <select id="select-tipo" disabled class="form-select bg-light text-muted">
-                            <option value="aluno" selected>Aluno</option>
-                        </select>
-                    {% else %}
-                        <select name="tipo" id="select-tipo" required class="form-select shadow-none">
-                            <option value="aluno" {% if form_data.get('tipo') == 'aluno' or (usuario and usuario.tipo == 'aluno') %}selected{% endif %}>Aluno</option>
-                            <option value="professor" {% if form_data.get('tipo') == 'professor' or (usuario and usuario.tipo == 'professor') %}selected{% endif %}>Professor / Orientador</option>
-                            <option value="admin" {% if form_data.get('tipo') == 'admin' or (usuario and usuario.tipo == 'admin') %}selected{% endif %}>Administrador Geral</option>
-                        </select>
-                    {% endif %}
+                    <label id="label-identificador" class="form-label fw-bold text-secondary">
+                        {% if acao == 'Editar' and usuario.tipo == 'aluno' %}
+                            Matrícula Acadêmica (RA)
+                        {% elif acao == 'Editar' %}
+                            ID Corporativo
+                        {% else %}
+                            Matrícula Acadêmica (RA)
+                        {% endif %}
+                    </label>
+                    
+                    <input type="text" 
+                           name="identificador" 
+                           id="input-identificador" 
+                           value="{{ identificador if acao == 'Editar' else form_data.get('identificador', '') }}" 
+                           required 
+                           class="form-control shadow-none">
+                    <small id="dica-identificador" class="text-muted d-block mt-1">
+                        {% if acao == 'Editar' and usuario.tipo == 'aluno' %}
+                            Os 10 dígitos numéricos do RA do aluno.
+                        {% elif acao == 'Editar' %}
+                            Identificação funcional corporativa do docente.
+                        {% else %}
+                            Para alunos, insira os 10 dígitos numéricos do RA.
+                        {% endif %}
+                    </small>
                 </div>
 
                 <div id="bloco-aluno" class="p-3 border rounded bg-light mb-4 shadow-sm" style="display: none;">
@@ -75,7 +95,7 @@
                     <div class="d-flex flex-column gap-2">
                         {% for p in projetos %}
                         <div class="form-check">
-                            <input class="form-check-input" type="checkbox" name="projetos_ids" value="{{ p.id }}" id="chk_p_{{ p.id }}" {% if lista_projects_ids and p.id in lista_projetos_ids %}checked{% endif %}>
+                            <input class="form-check-input" type="checkbox" name="projetos_ids" value="{{ p.id }}" id="chk_p_{{ p.id }}" {% if lista_projetos_ids and p.id in lista_projetos_ids %}checked{% endif %}>
                             <label class="form-check-label text-dark small" for="chk_p_{{ p.id }}">{{ p.nome_projeto }}</label>
                         </div>
                         {% endfor %}
@@ -105,7 +125,9 @@
         const selectTipo = document.getElementById('select-tipo');
         const blocoAluno = document.getElementById('bloco-aluno');
         const blocoEquipe = document.getElementById('bloco-equipe');
-        const inputMatricula = document.getElementById('input-matricula');
+        const inputIdentificador = document.getElementById('input-identificador');
+        const labelIdentificador = document.getElementById('label-identificador');
+        const dicaIdentificador = document.getElementById('dica-identificador');
 
         function alternarFormulario() {
             const tipo = selectTipo.value;
@@ -113,21 +135,33 @@
             if (tipo === 'aluno') {
                 blocoAluno.style.display = 'block';
                 blocoEquipe.style.display = 'none';
-                if(inputMatricula) inputMatricula.setAttribute('maxlength', '10');
+                
+                labelIdentificador.textContent = "Matrícula Acadêmica (RA)";
+                inputIdentificador.placeholder = "Digite os 10 dígitos do RA...";
+                dicaIdentificador.textContent = "Para alunos, insira os 10 dígitos numéricos do RA.";
+                inputIdentificador.setAttribute('maxlength', '10');
             } 
             else if (tipo === 'professor') {
                 blocoAluno.style.display = 'none';
-                blocoEquipe.style.display = 'block'; // Exibe a supervisão apenas para o professor
-                if(inputMatricula) inputMatricula.removeAttribute('maxlength');
+                blocoEquipe.style.display = 'block';
+                
+                labelIdentificador.textContent = "ID Corporativo";
+                inputIdentificador.placeholder = "Digite o ID corporativo...";
+                dicaIdentificador.textContent = "Identificação funcional corporativa do docente.";
+                inputIdentificador.removeAttribute('maxlength');
             } 
             else { // admin
                 blocoAluno.style.display = 'none';
-                blocoEquipe.style.display = 'none'; // Esconde a supervisão para administradores genéricos
-                if(inputMatricula) inputMatricula.removeAttribute('maxlength');
+                blocoEquipe.style.display = 'none';
+                
+                labelIdentificador.textContent = "ID Corporativo";
+                inputIdentificador.placeholder = "Digite o ID corporativo...";
+                dicaIdentificador.textContent = "Identificação de acesso interno do administrador.";
+                inputIdentificador.removeAttribute('maxlength');
             }
         }
         
-        if(selectTipo) {
+        if (selectTipo) {
             selectTipo.addEventListener('change', alternarFormulario);
             alternarFormulario();
         }
