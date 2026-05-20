@@ -239,19 +239,23 @@ def admin_importar():
 @requer_perfil('admin')
 def admin_configuracoes():
     if request.method == 'POST':
-        # Captura o valor do campo de texto enviado pelo formulário
         nova_edicao = request.form.get('nova_edicao', '').strip()
-        if nova_edicao:
-            valido = admin_repository.atualizar_edicao_ativa(nova_edicao)
-            if valido:
-                flash(f"Nova edição iniciada com sucesso: {nova_edicao}!", "sucesso")
-                return redirect(url_for('admin.admin_configuracoes'))
-            else:
-                flash(f"Erro: A edição '{nova_edicao}' já possui histórico atrelado.", "erro")
-        else:
+        
+        if not nova_edicao:
             flash("Por favor, informe uma identificação de ciclo válida.", "erro")
-
-    # REMOVIDO INT() - Exibe a string limpa diretamente na tela
+            return redirect(url_for('admin.admin_configuracoes'))
+            
+        # Executa a regra de validação inteligente do repositório
+        resultado = admin_repository.atualizar_edicao_ativa(nova_edicao)
+        
+        if resultado == 'sucesso':
+            flash(f"Ciclo alterado com sucesso! Edição ativa configurada para: {nova_edicao}.", "sucesso")
+        elif resultado == 'ja_ativa':
+            flash(f"Atenção: O ciclo '{nova_edicao}' já é a edição corrente ativa no sistema.", "info")
+            
+        return redirect(url_for('admin.admin_configuracoes'))
+        
+    # Mantém a exibição amigável trazendo o ID resolvido da tabela 'configuracoes'
     edicao_ativa = obter_configuracao_global('edicao_ativa')
     return render_template('admin_configuracoes.html', edicao=edicao_ativa)
 
