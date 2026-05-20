@@ -1,0 +1,276 @@
+import uuid
+import csv
+from db import obter_conexao
+from werkzeug.security import generate_password_hash
+
+def _obter_id_edicao_por_nome(cursor, nome_edicao: str) -> int:
+    """Função utilitária interna para obter o ID numérico a partir do nome do ciclo."""
+    cursor.execute("SELECT id FROM edicoes WHERE nome_edicao = %s", (str(nome_edicao).strip(),))
+    res = cursor.fetchone()
+    return res['id'] if res else None
+
+def obter_projetos_vinculados_admin(id_admin: int) -> list:
+    sql = """
+        SELECT p.id, p.nome_projeto 
+        FROM supervisores_projeto sp 
+        JOIN projetos p ON sp.id_projeto = p.id 
+        WHERE sp.id_professor = %s
+    """
+    with obter_conexao() as cursor:
+        cursor.execute(sql, (id_admin,))
+        return cursor.fetchall()
+
+def verificar_vinculos_alunos(tipo: str, target_id: int) -> list:
+    if tipo == 'curso':
+        sql = "SELECT u.nome FROM usuarios u JOIN usuarios_cursos uc ON u.id = uc.id_aluno WHERE uc.id_curso = %s"
+    else:
+        sql = "SELECT u.nome FROM usuarios u JOIN inscricoes i ON u.id = i.id_aluno WHERE i.id_projeto = %s"
+    with obter_conexao() as cursor:
+        cursor.execute(sql, (target_id,))
+        return [row['nome'] for row in cursor.fetchall()]
+
+def listar_todos_cursos() -> list:
+    sql = "SELECT * FROM cursos ORDER BY ativo DESC, nome_curso ASC"
+    with obter_conexao() as cursor:
+        cursor.execute(sql)
+        return cursor.fetchall()
+
+def salvar_curso(nome: str, curso_id: int = None) -> None:
+    with obter_conexao() as cursor:
+        if curso_id:
+            cursor.execute("UPDATE cursos SET nome_curso = %s WHERE id = %s", (nome, curso_id))
+        else:
+            cursor.execute("INSERT INTO cursos (nome_curso, ativo) VALUES (%s, 1)", (nome,))
+
+def alternar_status_curso(id_curso: int) -> str:
+    with obter_conexao() as cursor:
+        cursor.execute("SELECT nome_curso, ativo FROM cursos WHERE id = %s", (id_curso,))
+        curso = cursor.fetchone()
+        if curso:
+            novo_status = 0 if curso['ativo'] == 1 else 1
+            cursor.execute("UPDATE cursos SET ativo = %s WHERE id = %s", (novo_status, id_curso))
+            return curso['nome_curso']
+    return None
+
+def listar_todos_projetos() -> list:
+    sql = "SELECT * FROM projetos ORDER BY ativo DESC, nome_projeto ASC"
+    with obter_conexao() as cursor:
+        cursor.execute(sql)
+        return cursor.fetchall()
+
+def salvar_projeto(nome: str, projeto_id: int = None) -> None:
+    with obter_conexao() as cursor:
+        if projeto_id:
+            cursor.execute("UPDATE projetos SET nome_projeto = %s WHERE id = %s", (nome, projeto_id))
+        else:
+            cursor.execute("INSERT INTO projetos (nome_projeto, ativo) VALUES (%s, 1)", (nome,))
+
+def alternar_status_projeto(id_projeto: int) -> str:
+    with obter_conexao() as cursor:
+        cursor.execute("SELECT nome_projeto, ativo FROM projetos WHERE id = %s", (id_projeto,))
+        proj = cursor.fetchone()
+        if proj:
+            novo_status = 0 if proj['ativo'] == 1 else 1
+            cursor.execute("UPDATE projetos SET ativo = %s WHERE id = %s", (novo_status, id_projeto))
+            return proj['nome_projeto']
+    return None
+
+def listar_usuarios_painel_paginado(busca_matricula: str, tipo_filtro: str, letra_filtro: str, pagina: int, limite: int = 50) -> tuple:
+    offset = (pagina - 1) * limite
+    condicoes = []
+    parametros = []
+    
+    if busca_matricula:
+        condicoes.append("a.matricula LIKE %s")
+        parametros.append(f"%{busca_matricula}%")
+    if tipo_filtro:
+        condicoes.append("u.tipo = %s")
+        parametros.append(tipo_filtro)
+    if tipo_filtro == 'aluno' and letra_filtro:
+        condicoes.append("u.nome ILIKE %s")
+        parametros.append(f"{letra_filtro}%")
+        
+    where_clause = " WHERE " + " AND ".join(condicoes) if condicoes else ""
+    
+    sql_dados = f"""
+        SELECT u.id, u.nome, a.matricula, u.tipo, u.status_conta, u.ativo 
+        FROM usuarios u 
+        LEFT JOIN alunos a ON u.id = a.id_usuario 
+        {where_clause}
+        ORDER BY u.nome ASC
+        LIMIT %s OFFSET %s
+    """
+    
+    sql_count = f"""
+        SELECT COUNT(*) as total 
+        FROM usuarios u 
+        LEFT JOIN alunos a ON u.id = a.id_usuario 
+        {where_clause}
+    """
+    
+    with obter_conexao() as cursor:
+        cursor.execute(sql_count, parametros)
+        total = cursor.fetchone()['total']
+        
+        cursor.execute(sql_dados, parametros + [limite, offset])
+        usuarios = cursor.fetchall()
+        
+    return usuarios, total
+
+def cadastrar_usuario_manual(nome: str, identificador: str, tipo: str, senha_hash: str, chave_unica: str, cursos: list, projetos: list, inscricoes: list, id_edicao: str) -> None:
+    with obter_conexao() as cursor:
+        id_real_edicao = _obter_id_edicao_por_nome(cursor, id_edicao)
+        
+        cursor.execute("""
+            INSERT INTO usuarios (nome, login, senha, tipo, status_conta, chave_acesso)
+            VALUES (%s, %s, %s, %s, 'pendente', %s) RETURNING id
+        """, (nome, identificador, senha_hash, tipo, chave_unica))
+        novo_id = cursor.fetchone()['id']
+
+        if tipo == 'aluno':
+            qr_token = str(uuid.uuid4())
+            cursor.execute("""
+                INSERT INTO alunos (id_usuario, matricula, origem_cadastro, qr_token) 
+                VALUES (%s, %s, 'manual', %s)
+            """, (novo_id, identificador, qr_token))
+            
+            for c_id in list(set(cursos)):
+                cursor.execute("INSERT INTO usuarios_cursos (id_aluno, id_curso) VALUES (%s, %s)", (novo_id, c_id))
+            for p_id in list(set(inscricoes)):
+                cursor.execute("INSERT INTO inscricoes (id_aluno, id_projeto, id_edicao, presenca) VALUES (%s, %s, %s, 0)", (novo_id, p_id, id_real_edicao))
+        
+        elif tipo in ['professor', 'admin']:
+            cursor.execute("""
+                INSERT INTO professores (id_usuario, id_corporativo) 
+                VALUES (%s, %s) ON CONFLICT DO NOTHING
+            """, (novo_id, identificador))
+            
+            for p_id in list(set(projetos)):
+                cursor.execute("INSERT INTO supervisores_projeto (id_professor, id_projeto) VALUES (%s, %s)", (novo_id, p_id))
+
+def obter_lista_inscricoes_aluno(id_aluno: int, id_edicao: str) -> list:
+    with obter_conexao() as cursor:
+        id_real_edicao = _obter_id_edicao_por_nome(cursor, id_edicao)
+        sql = "SELECT id_projeto FROM inscricoes WHERE id_aluno = %s AND id_edicao = %s"
+        cursor.execute(sql, (id_aluno, id_real_edicao))
+        return [row['id_projeto'] for row in cursor.fetchall()]
+
+def atualizar_usuario_admin(id_usuario: int, nome: str, tipo: str, cursos_ids: list, projetos_ids: list, inscricoes_ids: list, id_edicao: str, reset_senha: str, matricula: str) -> None:
+    with obter_conexao() as cursor:
+        id_real_edicao = _obter_id_edicao_por_nome(cursor, id_edicao)
+        
+        cursor.execute("UPDATE usuarios SET nome = %s, tipo = %s WHERE id = %s", (nome, tipo, id_usuario))
+        cursor.execute("DELETE FROM usuarios_cursos WHERE id_aluno = %s", (id_usuario,))
+        cursor.execute("DELETE FROM supervisores_projeto WHERE id_professor = %s", (id_usuario,))
+        
+        if tipo == 'aluno':
+            for c_id in cursos_ids:
+                cursor.execute("INSERT INTO usuarios_cursos (id_aluno, id_curso) VALUES (%s, %s)", (id_usuario, c_id))
+            
+            cursor.execute("SELECT id_projeto, presenca FROM inscricoes WHERE id_aluno = %s AND id_edicao = %s", (id_usuario, id_real_edicao))
+            atuais = cursor.fetchall()
+            atuais_dict = {row['id_projeto']: row['presenca'] for row in atuais}
+            selecionados = [int(x) for x in inscricoes_ids]
+            
+            for p_id, presenca in atuais_dict.items():
+                if p_id not in selecionados and presenca == 0:
+                    cursor.execute("DELETE FROM inscricoes WHERE id_aluno = %s AND id_projeto = %s AND id_edicao = %s", (id_usuario, p_id, id_real_edicao))
+            for p_id in selecionados:
+                if p_id not in atuais_dict:
+                    cursor.execute("INSERT INTO inscricoes (id_aluno, id_projeto, id_edicao, presenca) VALUES (%s, %s, %s, 0)", (id_usuario, p_id, id_real_edicao))
+        
+        elif tipo in ['professor', 'admin']:
+            cursor.execute("""
+                INSERT INTO professores (id_usuario, id_corporativo) 
+                VALUES (%s, %s) ON CONFLICT DO NOTHING
+            """, (id_usuario, matricula))
+            
+            for p_id in projetos_ids:
+                cursor.execute("INSERT INTO supervisores_projeto (id_professor, id_projeto) VALUES (%s, %s)", (id_usuario, p_id))
+                
+        if reset_senha == 'sim':
+            cursor.execute("UPDATE usuarios SET senha = %s, status_conta = 'pendente' WHERE id = %s", (generate_password_hash(matricula), id_usuario))
+
+def alternar_status_usuario(id_usuario: int) -> dict:
+    with obter_conexao() as cursor:
+        cursor.execute("SELECT ativo, nome FROM usuarios WHERE id = %s", (id_usuario,))
+        usuario = cursor.fetchone()
+        if usuario:
+            novo_estado = 0 if usuario['ativo'] == 1 else 1
+            cursor.execute("UPDATE usuarios SET ativo = %s WHERE id = %s", (novo_estado, id_usuario))
+            return {"nome": usuario['nome'], "novo_estado": novo_estado}
+    return None
+
+def atualizar_edicao_ativa(nova_edicao: str) -> bool:
+    with obter_conexao() as cursor:
+        cursor.execute("""
+            INSERT INTO edicoes (nome_edicao) 
+            VALUES (%s) 
+            ON CONFLICT (nome_edicao) DO NOTHING 
+            RETURNING id
+        """, (nova_edicao,))
+        
+        res = cursor.fetchone()
+        
+        if not res:
+            cursor.execute("SELECT id FROM edicoes WHERE nome_edicao = %s", (nova_edicao,))
+            cursor.fetchone()
+            
+        cursor.execute("""
+            UPDATE configuracoes 
+            SET valor = %s 
+            WHERE chave = 'edicao_ativa'
+        """, (nova_edicao,))
+        
+        return True
+
+def processar_importacao_csv(linhas: list, id_edicao: str) -> tuple:
+    sucessos, erros = 0, 0
+    with obter_conexao() as cursor:
+        id_real_edicao = _obter_id_edicao_por_nome(cursor, id_edicao)
+        
+        for linha in linhas:
+            if len(linha) < 2: continue
+            matricula = str(linha[0]).strip()
+            nome = str(linha[1]).strip()
+            email = str(linha[2]).strip() if len(linha) > 2 else ""
+
+            if not matricula.isdigit() or len(matricula) != 10:
+                erros += 1; continue
+
+            cursor.execute("SELECT id_usuario FROM alunos WHERE matricula = %s", (matricula,))
+            if cursor.fetchone():
+                erros += 1; continue
+
+            chave_unica = str(uuid.uuid4())
+            qr_token = str(uuid.uuid4())
+            senha_hash = generate_password_hash(matricula)
+
+            cursor.execute("""
+                INSERT INTO usuarios (nome, email_institucional, senha, tipo, status_conta, origem_cadastro, chave_acesso)
+                VALUES (%s, %s, %s, 'aluno', 'pendente', 'importacao_csv', %s) RETURNING id
+            """, (nome, email, senha_hash, chave_unica))
+            novo_id = cursor.fetchone()['id']
+            
+            cursor.execute("""
+                INSERT INTO alunos (id_usuario, matricula, origem_cadastro, qr_token) 
+                VALUES (%s, %s, 'importacao_csv', %s)
+            """, (novo_id, matricula, qr_token))
+            sucessos += 1
+    return sucessos, erros
+
+def obter_relatorio_geral_presencas(id_edicao: str) -> list:
+    with obter_conexao() as cursor:
+        id_real_edicao = _obter_id_edicao_por_nome(cursor, id_edicao)
+        sql = """
+            SELECT u.nome, a.matricula, p.nome_projeto, e.nome_edicao,
+                   CASE WHEN i.presenca = 1 THEN 'Presente' ELSE 'Faltou' END as status
+            FROM usuarios u
+            JOIN alunos a ON u.id = a.id_usuario
+            JOIN inscricoes i ON u.id = i.id_aluno
+            JOIN projetos p ON i.id_projeto = p.id
+            JOIN edicoes e ON i.id_edicao = e.id
+            WHERE i.id_edicao = %s ORDER BY u.nome ASC
+        """
+        cursor.execute(sql, (id_real_edicao,))
+        return cursor.fetchall()

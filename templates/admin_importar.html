@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% import 'componentes/macros.html' as ui %}
+
+{% block title %}Importar Alunos{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-md-8 col-lg-6">
+        <div class="mb-4">
+            <div class="d-flex justify-content-end mb-2">
+                <a href="{{ url_for('admin.admin_painel') }}" class="btn btn-sm btn-secondary fw-bold shadow-sm">
+                    <i class="bi bi-arrow-left-short"></i> Voltar
+                </a>
+            </div>
+            <h2 class="text-primario-evento fw-bold mb-0">Importação de Alunos (CSV)</h2>
+        </div>
+
+        {% call ui.card() %}
+            <div class="alert alert-warning border border-warning p-3 rounded mb-4 shadow-sm">
+                <h6 class="fw-bold text-dark mb-2"><i class="bi bi-info-circle-fill text-warning"></i> Requisitos do Arquivo:</h6>
+                <ul class="mb-0 small text-secondary ps-3">
+                    <li>Extensão exigida: <strong>.csv</strong> com separador ponto e vírgula (<b>;</b>)</li>
+                    <li><b>Coluna 1:</b> Matrícula / RA (10 dígitos)</li>
+                    <li><b>Coluna 2:</b> Nome Completo</li>
+                    <li><b>Coluna 3:</b> E-mail (Opcional)</li>
+                </ul>
+            </div>
+
+            <form action="{{ url_for('admin.admin_importar') }}" method="POST" enctype="multipart/form-data">
+                <div class="p-4 border rounded bg-light text-center mb-4" style="border-style: dashed !important; border-width: 2px !important;">
+                    <i class="bi bi-cloud-arrow-up fs-1 text-secondary mb-2 d-block"></i>
+                    <input type="file" name="arquivo" accept=".csv" required class="form-control mx-auto shadow-sm" style="max-width: 320px;">
+                </div>
+                <button type="submit" class="btn btn-danger w-100 py-2 fw-bold">Iniciar Processamento</button>
+            </form>
+        {% endcall %}
+    </div>
+</div>
+{% endblock %}

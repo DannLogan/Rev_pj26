@@ -1,0 +1,136 @@
+{% extends 'base.html' %}
+{% import 'componentes/macros.html' as ui %}
+
+{% block title %}{{ acao }} Usuário{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center animate-fade-in">
+    <div class="col-12 col-md-8 col-lg-6">
+        <div class="mb-4">
+            <div class="d-flex justify-content-end mb-2">
+                <a href="{{ url_for('admin.admin_gestao_usuarios') }}" class="btn btn-sm btn-secondary fw-bold shadow-sm px-3">
+                    <i class="bi bi-arrow-left"></i> Voltar
+                </a>
+            </div>
+            <h2 class="text-primario-evento fw-bold mb-0">{{ acao }} Registro de Usuário</h2>
+        </div>
+
+        {% call ui.card() %}
+            <form action="" method="POST" id="form-usuario">
+                {{ ui.campo_input(nome="nome", label="Nome Completo", valor=usuario.nome if usuario else form_data.get('nome', '')) }}
+                
+                <div class="mb-3">
+                    <label class="form-label fw-bold text-secondary">Identificador Acadêmico (RA/Matrícula)</label>
+                    {% if acao == 'Editar' %}
+                        <input type="text" value="{{ usuario.matricula }}" disabled class="form-control bg-light text-muted font-monospace">
+                        <input type="hidden" name="matricula" value="{{ usuario.matricula }}">
+                    {% else %}
+                        <input type="text" name="matricula" id="input-matricula" value="{{ form_data.get('matricula', '') }}" required class="form-control shadow-none">
+                        <small id="dica-matricula" class="text-muted d-block mt-1">Para alunos, insira os 10 dígitos numéricos do RA.</small>
+                    {% endif %}
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label fw-bold text-secondary">Perfil de Acesso do Usuário</label>
+                    {% if acao == 'Editar' and usuario.tipo == 'aluno' %}
+                        <input type="hidden" name="tipo" value="aluno">
+                        <select id="select-tipo" disabled class="form-select bg-light text-muted">
+                            <option value="aluno" selected>Aluno</option>
+                        </select>
+                    {% else %}
+                        <select name="tipo" id="select-tipo" required class="form-select shadow-none">
+                            <option value="aluno" {% if form_data.get('tipo') == 'aluno' or (usuario and usuario.tipo == 'aluno') %}selected{% endif %}>Aluno</option>
+                            <option value="professor" {% if form_data.get('tipo') == 'professor' or (usuario and usuario.tipo == 'professor') %}selected{% endif %}>Professor / Orientador</option>
+                            <option value="admin" {% if form_data.get('tipo') == 'admin' or (usuario and usuario.tipo == 'admin') %}selected{% endif %}>Administrador Geral</option>
+                        </select>
+                    {% endif %}
+                </div>
+
+                <div id="bloco-aluno" class="p-3 border rounded bg-light mb-4 shadow-sm" style="display: none;">
+                    <h6 class="fw-bold text-dark border-bottom pb-2 mb-2"><i class="bi bi-journal-bookmark"></i> Curso Vinculado</h6>
+                    <div class="row row-cols-1 row-cols-sm-2 g-2 mb-3">
+                        {% for c in cursos %}
+                        <div class="col">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="cursos_ids" value="{{ c.id }}" id="chk_c_{{ c.id }}" {% if lista_cursos_ids and c.id in lista_cursos_ids %}checked{% endif %}>
+                                <label class="form-check-label text-dark small" for="chk_c_{{ c.id }}">{{ c.nome_curso }}</label>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <h6 class="fw-bold text-dark border-bottom pb-2 mb-2"><i class="bi bi-award"></i> Inscrição em Projetos</h6>
+                    <div class="d-flex flex-column gap-2">
+                        {% for p in projetos %}
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="inscricoes_ids" value="{{ p.id }}" id="chk_i_{{ p.id }}" {% if lista_inscricoes_ids and p.id in lista_inscricoes_ids %}checked{% endif %}>
+                            <label class="form-check-label text-dark small" for="chk_i_{{ p.id }}">{{ p.nome_projeto }}</label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div id="bloco-equipe" class="p-3 border rounded bg-light mb-4 shadow-sm" style="display: none;">
+                    <h6 class="fw-bold text-dark border-bottom pb-2 mb-2"><i class="bi bi-briefcase"></i> Supervisão de Atividades</h6>
+                    <div class="d-flex flex-column gap-2">
+                        {% for p in projetos %}
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="projetos_ids" value="{{ p.id }}" id="chk_p_{{ p.id }}" {% if lista_projects_ids and p.id in lista_projetos_ids %}checked{% endif %}>
+                            <label class="form-check-label text-dark small" for="chk_p_{{ p.id }}">{{ p.nome_projeto }}</label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                {% if acao == 'Editar' %}
+                <div class="alert alert-warning border border-warning p-3 mb-4 rounded shadow-sm">
+                    <h6 class="fw-bold text-danger mb-1"><i class="bi bi-shield-fill-exclamation"></i> Reset de Credenciais</h6>
+                    <div class="form-check mt-2">
+                        <input class="form-check-input border-danger shadow-none" type="checkbox" name="reset_senha" value="sim" id="reset_senha_check">
+                        <label class="form-check-label text-dark fw-bold small" for="reset_senha_check">Forçar redefinição de senha para o padrão.</label>
+                    </div>
+                </div>
+                {% endif %}
+
+                <button type="submit" class="btn btn-success w-100 py-2.5 fw-bold shadow-sm">
+                    {% if acao == 'Editar' %}<i class="bi bi-check-circle-fill me-1"></i> Salvar Alterações{% else %}<i class="bi bi-person-plus-fill me-1"></i> Salvar Cadastro{% endif %}
+                </button>
+            </form>
+        {% endcall %}
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const selectTipo = document.getElementById('select-tipo');
+        const blocoAluno = document.getElementById('bloco-aluno');
+        const blocoEquipe = document.getElementById('bloco-equipe');
+        const inputMatricula = document.getElementById('input-matricula');
+
+        function alternarFormulario() {
+            const tipo = selectTipo.value;
+            
+            if (tipo === 'aluno') {
+                blocoAluno.style.display = 'block';
+                blocoEquipe.style.display = 'none';
+                if(inputMatricula) inputMatricula.setAttribute('maxlength', '10');
+            } 
+            else if (tipo === 'professor') {
+                blocoAluno.style.display = 'none';
+                blocoEquipe.style.display = 'block'; // Exibe a supervisão apenas para o professor
+                if(inputMatricula) inputMatricula.removeAttribute('maxlength');
+            } 
+            else { // admin
+                blocoAluno.style.display = 'none';
+                blocoEquipe.style.display = 'none'; // Esconde a supervisão para administradores genéricos
+                if(inputMatricula) inputMatricula.removeAttribute('maxlength');
+            }
+        }
+        
+        if(selectTipo) {
+            selectTipo.addEventListener('change', alternarFormulario);
+            alternarFormulario();
+        }
+    });
+</script>
+{% endblock %}

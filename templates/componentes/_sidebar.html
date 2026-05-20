@@ -1,0 +1,88 @@
+<div class="offcanvas-md offcanvas-start bg-dark text-white p-3 shadow d-flex flex-column" 
+     tabindex="-1" 
+     id="sidebarMenu" 
+     aria-labelledby="sidebarMenuLabel" 
+     style="min-width: 260px; max-height: 100vh; overflow-y: auto;">
+    
+    <div class="d-flex align-items-center justify-content-between mb-3 pb-3 border-bottom flex-shrink-0">
+        <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-award-fill fs-3 text-primary"></i>
+            <h4 class="mb-0 fw-bold" id="sidebarMenuLabel">Simpósio {{ session.get('edicao', '2026') }}</h4>
+        </div>
+        <button type="button" 
+                class="btn-close btn-close-white d-md-none" 
+                data-bs-dismiss="offcanvas" 
+                data-bs-target="#sidebarMenu" 
+                aria-label="Close"></button>
+    </div>
+
+    <div class="bg-secondary bg-opacity-10 p-3 rounded mb-4 text-start border border-secondary border-opacity-25 flex-shrink-0">
+        <small class="text-muted d-block text-uppercase fw-bold mb-1" style="font-size: 0.65rem; letter-spacing: 1px;">Conta Ativa</small>
+        <div class="fw-bold text-white text-truncate mb-2" style="max-width: 220px;">{{ session.get('nome', 'Usuário') }}</div>
+        <span class="badge bg-primary text-capitalize px-2 py-1 shadow-sm font-monospace" style="font-size: 0.75rem;">
+            {{ session.get('tipo') }}
+        </span>
+    </div>
+    
+    <ul class="nav nav-pills flex-column mb-auto gap-2 w-100">
+        {# PERFIL ALUNO #}
+        {% if session.get('tipo') == 'aluno' %}
+            <li class="nav-item">
+                <a href="{{ url_for('aluno.aluno_dashboard') }}" class="nav-link text-white d-flex align-items-center gap-2">
+                    <i class="bi bi-speedometer2"></i> Meu Dashboard
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="{{ url_for('aluno.aluno_historico') }}" class="nav-link text-white d-flex align-items-center gap-2">
+                    <i class="bi bi-clock-history"></i> Meu Histórico
+                </a>
+            </li>
+            
+        {# PERFIL PROFESSOR #}
+        {% elif session.get('tipo') == 'professor' %}
+            <li class="nav-item">
+                <a href="{{ url_for('professor.professor_dashboard') }}" class="nav-link text-white d-flex align-items-center gap-2">
+                    <i class="bi bi-grid-1x2-fill"></i> Meus Projetos
+                </a>
+            </li>
+            
+        {# PERFIL ADMINISTRADOR #}
+        {% elif session.get('tipo') == 'admin' %}
+            <li class="nav-item">
+                <a href="{{ url_for('admin.admin_painel') }}" class="nav-link text-white d-flex align-items-center gap-2">
+                    <i class="bi bi-shield-lock"></i> Painel Geral
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="{{ url_for('admin.admin_gestao_usuarios') }}" class="nav-link text-white d-flex align-items-center gap-2">
+                    <i class="bi bi-people"></i> Gerenciar Usuários
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="{{ url_for('admin.admin_gestao_cursos') }}" class="nav-link text-white d-flex align-items-center gap-2">
+                    <i class="bi bi-book"></i> Cursos Geral
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="{{ url_for('admin.admin_gestao_projetos') }}" class="nav-link text-white d-flex align-items-center gap-2">
+                    <i class="bi bi-file-earmark-code"></i> Projetos Ativos
+                </a>
+            </li>
+        {% endif %}
+    </ul>
+    
+    <div class="mt-auto pt-3 border-top w-100 flex-shrink-0">
+        <ul class="nav nav-pills flex-column gap-2">
+            <li class="nav-item">
+                <a href="{{ url_for('auth.editar_perfil') }}" class="nav-link text-white-50 d-flex align-items-center gap-2 py-2">
+                    <i class="bi bi-person-gear fs-5"></i> Configurar Perfil
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="{{ url_for('auth.logout') }}" class="nav-link text-danger d-flex align-items-center gap-2 py-2 fw-bold bg-danger-subtle bg-opacity-10 rounded">
+                    <i class="bi bi-box-arrow-right fs-5"></i> Sair do Sistema
+                </a>
+            </li>
+        </ul>
+    </div>
+</div>

@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+{% import 'componentes/macros.html' as ui %}
+
+{% block title %}Controle do Projeto{% endblock %}
+
+{% block content %}
+<div class="mb-4 animate-fade-in">
+    <div class="d-flex justify-content-end mb-2">
+        <a href="{{ url_for('professor.professor_dashboard') }}" class="btn btn-sm btn-secondary fw-bold shadow-sm px-3">
+            <i class="bi bi-arrow-left"></i> Voltar
+        </a>
+    </div>
+    <h2 class="text-primario-evento fw-bold mb-1">{{ projeto.nome_projeto }}</h2>
+    <p class="text-muted mb-0">Gestão de Presenças e Alunos Inscritos</p>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-12 col-sm-6">
+        <a href="{{ url_for('professor.professor_scanner', projeto_id=projeto.id) }}" class="text-decoration-none">
+            <div class="card text-center p-4 btn-acao-evento text-white shadow-sm h-100 d-flex flex-column justify-content-center align-items-center border-0 rounded-3">
+                <i class="bi bi-qr-code-scan fs-1 mb-2"></i>
+                <span class="fw-bold fs-6 text-uppercase">Abrir Scanner de Câmera</span>
+            </div>
+        </a>
+    </div>
+    
+    <div class="col-12 col-sm-6">
+        <a href="{{ url_for('professor.professor_exportar_csv', projeto_id=projeto.id) }}" class="text-decoration-none">
+            <div class="card text-center p-4 bg-dark text-white shadow-sm h-100 d-flex flex-column justify-content-center align-items-center border-0 rounded-3">
+                <i class="bi bi-file-earmark-spreadsheet fs-1 mb-2"></i>
+                <span class="fw-bold fs-6 text-uppercase">Exportar Planilha CSV</span>
+            </div>
+        </a>
+    </div>
+</div>
+
+<h4 class="fw-bold text-dark mb-3">Alunos Vinculados ({{ alunos|length }})</h4>
+<div class="card border-0 shadow-sm p-0 bg-white rounded-3 overflow-hidden">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0 text-start">
+            <thead class="table-light border-bottom">
+                <tr>
+                    <th class="p-3 text-secondary small text-uppercase fw-bold" style="width: 25%;">Matrícula / RA</th>
+                    <th class="p-3 text-secondary small text-uppercase fw-bold" style="width: 50%;">Nome do Aluno</th>
+                    <th class="p-3 text-secondary small text-uppercase fw-bold text-center" style="width: 25%;">Presença</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for aluno in alunos %}
+                <tr class="border-bottom">
+                    <td class="p-3 text-secondary font-monospace fs-6">{{ aluno.matricula }}</td>
+                    <td class="p-3 text-dark fw-bold fs-6">{{ aluno.nome }}</td>
+                    <td class="p-3 text-center">
+                        {% if aluno.presenca == 1 %}
+                            <span class="badge bg-success-subtle text-success px-3 py-2 rounded-pill fw-bold border border-success">
+                                <i class="bi bi-check-circle-fill me-1"></i> Presente
+                            </span>
+                        {% else %}
+                            <span class="badge bg-warning-subtle text-warning px-3 py-2 rounded-pill fw-bold border border-warning">
+                                <i class="bi bi-clock-history me-1"></i> Pendente
+                            </span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="3" class="text-center p-5 text-muted">
+                        <i class="bi bi-people fs-2 mb-2 d-block text-light"></i>
+                        Nenhum aluno inscrito neste projeto até o momento.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

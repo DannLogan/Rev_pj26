@@ -1,0 +1,276 @@
+import csv
+import io
+import re
+import uuid
+import math
+from io import StringIO
+from flask import Blueprint, render_template, session, redirect, url_for, flash, request, make_response
+from werkzeug.security import generate_password_hash
+from utils.decorators import requer_autenticacao, requer_perfil
+from repositories import admin_repository, auth_repository
+from db import obter_configuracao_global
+
+admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
+
+@admin_bp.route('/painel')
+@requer_autenticacao
+@requer_perfil('admin')
+def admin_painel():
+    return render_template('painel_admin.html')
+
+@admin_bp.route('/check-vinculos/<string:tipo>/<int:id>')
+@requer_autenticacao
+@requer_perfil('admin')
+def admin_check_vinculos(tipo, id):
+    vinculos = admin_repository.verificar_vinculos_alunos(tipo, id)
+    return {"alunos": vinculos}
+
+@admin_bp.route('/cursos', methods=['GET', 'POST'])
+@requer_autenticacao
+@requer_perfil('admin')
+def admin_gestao_cursos():
+    if request.method == 'POST':
+        nome = request.form.get('nome_curso', '').strip()
+        curso_id = request.form.get('curso_id') or None
+        admin_repository.salvar_curso(nome, curso_id)
+        flash("Curso processado com sucesso!", "sucesso")
+
+    cursos = admin_repository.listar_todos_cursos()
+    return render_template('admin_cursos.html', cursos=cursos)
+
+@admin_bp.route('/cursos/toggle/<int:id>')
+@requer_autenticacao
+@requer_perfil('admin')
+def admin_toggle_curso(id):
+    nome_curso = admin_repository.alternar_status_curso(id)
+    if nome_curso:
+        flash(f"Status do curso '{nome_curso}' modificado!", "sucesso")
+    return redirect(url_for('admin.admin_gestao_cursos'))
+
+@admin_bp.route('/projetos', methods=['GET', 'POST'])
+@requer_autenticacao
+@requer_perfil('admin')
+def admin_gestao_projetos():
+    if request.method == 'POST':
+        nome = request.form.get('nome_projeto', '').strip()
+        projeto_id = request.form.get('projeto_id') or None
+        admin_repository.salvar_projeto(nome, projeto_id)
+        flash("Projeto processado com sucesso!", "sucesso")
+
+    projetos = admin_repository.listar_todos_projetos()
+    return render_template('admin_projetos.html', projetos=projetos)
+
+@admin_bp.route('/projetos/toggle/<int:id>')
+@requer_autenticacao
+@requer_perfil('admin')
+def admin_toggle_projeto(id):
+    nome_proj = admin_repository.alternar_status_projeto(id)
+    if nome_proj:
+        flash(f"Status do projeto '{nome_proj}' modificado!", "sucesso")
+    return redirect(url_for('admin.admin_gestao_projetos'))
+
+@admin_bp.route('/usuarios', methods=['GET'])
+@requer_autenticacao
+@requer_perfil('admin')
+def admin_gestao_usuarios():
+    tipo_filtro = request.args.get('tipo', 'aluno')
+    letra_filtro = request.args.get('letra', '')
+    busca_matricula = request.args.get('busca_matricula', '').strip()
+    
+    try:
+        page = int(request.args.get('page', 1))
+    except ValueError:
+        page = 1
+        
+    limite_por_pagina = 50
+    
+    usuarios, total_resultados = admin_repository.listar_usuarios_painel_paginado(
+        busca_matricula, tipo_filtro, letra_filtro, page, limite_por_pagina
+    )
+    
+    total_paginas = math.ceil(total_resultados / limite_por_pagina)
+    
+    page_obj = {
+        'page': page,
+        'pages': total_paginas,
+        'has_prev': page > 1,
+        'prev_num': page - 1,
+        'has_next': page < total_paginas,
+        'next_num': page + 1
+    }
+    
+    alfabeto = [chr(i) for i in range(65, 91)]
+    return render_template(
+        'admin_usuarios.html', 
+        usuarios=usuarios, 
+        tipo_filtro=tipo_filtro, 
+        letra_filtro=letra_filtro, 
+        busca_matricula=busca_matricula, 
+        alfabeto=alfabeto,
+        total_resultados=total_resultados,
+        page_obj=page_obj
+    )
+
+@admin_bp.route('/usuarios/novo', methods=['GET', 'POST'])
+@requer_autenticacao
+@requer_perfil('admin')
+def admin_novo_usuario():
+    if request.method == 'POST':
+        nome = request.form.get('nome', '').strip()
+        matricula = request.form.get('matricula', '').strip()
+        tipo = request.form.get('tipo')
+        
+        if not re.match(r'^[A-Za-zÀ-ÿ\s]+$', nome) or not matricula.isdigit() or (tipo == 'aluno' and len(matricula) != 10):
+            flash("Erro de validação nos dados informados.", "erro")
+        else:
+            try:
+                conflito = auth_repository.verificar_duplicidade_cadastro(matricula, matricula, "")
+                if conflito:
+                    flash("Esta credencial/RA já existe no banco.", "erro")
+                else:
+                    # REMOVIDO INT() - Passa a string do ciclo
+                    id_edicao = obter_configuracao_global('edicao_ativa')
+                    admin_repository.cadastrar_usuario_manual(
+                        nome, matricula, tipo, generate_password_hash(matricula), str(uuid.uuid4()),
+                        request.form.getlist('cursos_ids'), request.form.getlist('projetos_ids'),
+                        request.form.getlist('inscricoes_ids'), id_edicao
+                    )
+                    flash(f"Usuário {nome} cadastrado com sucesso!", "sucesso")
+                    return redirect(url_for('admin.admin_gestao_usuarios'))
+            except Exception as e:
+                flash(f"Erro ao salvar: {e}", "erro")
+
+    cursos = admin_repository.listar_todos_cursos()
+    造型_projetos = admin_repository.listar_todos_projetos()
+    return render_template('admin_form_usuario.html', cursos=cursos, projetos=造型_projetos, form_data=request.form, acao="Novo")
+
+@admin_bp.route('/usuarios/editar/<int:id>', methods=['GET', 'POST'])
+@requer_autenticacao
+@requer_perfil('admin')
+def admin_editar_usuario(id):
+    usuario = auth_repository.buscar_usuario_por_id(id)
+    if not usuario:
+        flash("Usuário não encontrado.", "erro")
+        return redirect(url_for('admin.admin_gestao_usuarios'))
+
+    # REMOVIDO INT() - Passa a string do ciclo
+    id_edicao = obter_configuracao_global('edicao_ativa')
+
+    if request.method == 'POST':
+        nome = request.form.get('nome', '').strip()
+        if not re.match(r'^[A-Za-zÀ-ÿ\s]+$', nome):
+            flash("Erro: O nome deve conter apenas letras.", "erro")
+        else:
+            try:
+                admin_repository.atualizar_usuario_admin(
+                    id, nome, request.form.get('tipo'), request.form.getlist('cursos_ids'),
+                    request.form.getlist('projetos_ids'), request.form.getlist('inscricoes_ids'),
+                    id_edicao, request.form.get('reset_senha'), usuario['matricula']
+                )
+                flash(f"Usuário {nome} modificado!", "sucesso")
+                return redirect(url_for('admin.admin_gestao_usuarios'))
+            except Exception as e:
+                flash(f"Erro técnico: {e}", "erro")
+
+    cursos = admin_repository.listar_todos_cursos()
+    projetos = admin_repository.listar_todos_projetos()
+    lista_cursos_ids = auth_repository.buscar_cursos_usuario(id)
+    lista_projetos_ids = [row['id'] for row in admin_repository.obter_projetos_vinculados_admin(id)]
+    lista_inscricoes_ids = admin_repository.obter_lista_inscricoes_aluno(id, id_edicao)
+
+    return render_template(
+        'admin_form_usuario.html', usuario=usuario, cursos=cursos, projetos=projetos,
+        lista_cursos_ids=lista_cursos_ids, lista_projetos_ids=lista_projetos_ids,
+        lista_inscricoes_ids=lista_inscricoes_ids, form_data=request.form, acao="Editar"
+    )
+
+@admin_bp.route('/usuarios/toggle/<int:id>')
+@requer_autenticacao
+@requer_perfil('admin')
+def admin_toggle_usuario(id):
+    res = admin_repository.alternar_status_usuario(id)
+    if res:
+        status_txt = "Reativado" if res['novo_estado'] == 1 else "Ocultado"
+        flash(f"Usuário {res['nome']} modificado para: {status_txt}.", "sucesso")
+    return redirect(url_for('admin.admin_gestao_usuarios'))
+
+@admin_bp.route('/importar', methods=['GET', 'POST'])
+@requer_autenticacao
+@requer_perfil('admin')
+def admin_importar():
+    if request.method == 'POST':
+        if 'arquivo' not in request.files:
+            flash('Nenhum arquivo enviado.', 'erro')
+            return redirect(request.url)
+        arquivo = request.files['arquivo']
+        if arquivo.filename == '':
+            flash('Nenhum arquivo selecionado.', 'erro')
+            return redirect(request.url)
+
+        try:
+            conteudo = arquivo.read()
+            try: 
+                texto = conteudo.decode('utf-8-sig')
+            except UnicodeDecodeError: 
+                texto = conteudo.decode('latin-1')
+
+            leitor = csv.reader(io.StringIO(texto), delimiter=';')
+            linhas = list(leitor)
+            if not linhas:
+                flash('O arquivo está vazio.', 'erro')
+                return redirect(request.url)
+
+            if 'nome' in str(linhas[0]).lower() or 'matricula' in str(linhas[0]).lower() or 'ra' in str(linhas[0]).lower():
+                linhas.pop(0)
+
+            # REMOVIDO INT() - Passa a string do ciclo
+            id_edicao = obter_configuracao_global('edicao_ativa')
+            sucessos, erros = admin_repository.processar_importacao_csv(linhas, id_edicao)
+            
+            flash(f"Importação executada! Sucessos: {sucessos} | Duplicados ou Inválidos: {erros}", "sucesso" if sucessos > 0 else "info")
+            return redirect(url_for('admin.admin_gestao_usuarios'))
+        except Exception as e:
+            flash(f"Falha de processamento: {e}", "erro")
+
+    return render_template('admin_importar.html')
+
+@admin_bp.route('/configuracoes', methods=['GET', 'POST'])
+@requer_autenticacao
+@requer_perfil('admin')
+def admin_configuracoes():
+    if request.method == 'POST':
+        # Captura o valor do campo de texto enviado pelo formulário
+        nova_edicao = request.form.get('nova_edicao', '').strip()
+        if nova_edicao:
+            valido = admin_repository.atualizar_edicao_ativa(nova_edicao)
+            if valido:
+                flash(f"Nova edição iniciada com sucesso: {nova_edicao}!", "sucesso")
+                return redirect(url_for('admin.admin_configuracoes'))
+            else:
+                flash(f"Erro: A edição '{nova_edicao}' já possui histórico atrelado.", "erro")
+        else:
+            flash("Por favor, informe uma identificação de ciclo válida.", "erro")
+
+    # REMOVIDO INT() - Exibe a string limpa diretamente na tela
+    edicao_ativa = obter_configuracao_global('edicao_ativa')
+    return render_template('admin_configuracoes.html', edicao=edicao_ativa)
+
+@admin_bp.route('/exportar_presencas')
+@requer_autenticacao
+@requer_perfil('admin')
+def exportar_presencas():
+    # REMOVIDO INT() - Passa a string do ciclo
+    id_edicao = obter_configuracao_global('edicao_ativa')
+    relatorio = admin_repository.obter_relatorio_geral_presencas(id_edicao)
+
+    saida = StringIO(newline='')
+    escritor = csv.writer(saida, delimiter=';')
+    escritor.writerow(['Nome do Aluno', 'Matrícula', 'Projeto', 'Edição', 'Status'])
+
+    for l in relatorio:
+        escritor.writerow([l['nome'], l['matricula'], l['nome_projeto'], l['nome_edicao'], l['status']])
+
+    resposta = make_response('\ufeff' + saida.getvalue())
+    resposta.headers["Content-Disposition"] = "attachment; filename=relatorio_geral.csv"
+    resposta.headers["Content-Type"] = "text/csv; charset=utf-8"
+    return resposta

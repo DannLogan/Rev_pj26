@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% import 'componentes/macros.html' as ui %}
+
+{% block title %}Scanner{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-md-8 col-lg-6">
+        <div class="mb-4">
+            <div class="d-flex justify-content-end mb-2">
+                <a href="{{ url_for('professor.professor_projeto', projeto_id=projeto_id) }}" class="btn btn-sm btn-secondary fw-bold shadow-sm">
+                    <i class="bi bi-arrow-left-short"></i> Voltar
+                </a>
+            </div>
+            <h2 class="text-primario-evento fw-bold mb-0">Leitor de Credenciais</h2>
+        </div>
+
+        {% call ui.card() %}
+            <div class="p-3 border border-dashed rounded bg-light text-center">
+                <div id="reader" class="mx-auto rounded border bg-white mb-3" style="width: 100%; max-width: 340px;"></div>
+                <p id="status-scan" class="fw-bold mb-0 text-secondary">Aponte a câmera para a credencial do aluno.</p>
+            </div>
+        {% endcall %}
+    </div>
+</div>
+
+<script src="https://unpkg.com/html5-qrcode"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const html5QrCode = new Html5Qrcode("reader");
+        html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, (decodedText) => {
+            html5QrCode.stop().then(() => {
+                window.location.href = "/professor/projeto/{{ projeto_id }}/registrar/" + decodedText;
+            });
+        }).catch(err => { console.error(err); });
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,139 @@
+{% extends 'base.html' %}
+{% import 'componentes/macros.html' as ui %}
+
+{% block title %}Gestão de Usuários{% endblock %}
+
+{% block content %}
+<div class="mb-3 animate-fade-in">
+    <div class="d-flex justify-content-end mb-2">
+        <a href="{{ url_for('admin.admin_painel') }}" class="btn btn-sm btn-secondary fw-bold shadow-sm px-3">
+            <i class="bi bi-arrow-left"></i> Voltar
+        </a>
+    </div>
+    <h2 class="text-primario-evento fw-bold mb-3">Controle de Colaboradores e Alunos</h2>
+    
+    <a href="{{ url_for('admin.admin_novo_usuario') }}" class="btn btn-acao-evento btn-lg w-100 fw-bold shadow-sm py-2.5 mb-2">
+        <i class="bi bi-person-plus-fill me-1"></i> + Novo Cadastro Manual
+    </a>
+</div>
+
+<form action="{{ url_for('admin.admin_gestao_usuarios') }}" method="GET" class="card p-4 shadow-sm border-0 mb-4 bg-white rounded-3">
+    <input type="hidden" name="letra" id="input-letra" value="{{ letra_filtro }}">
+    
+    <div class="row g-3">
+        <div class="col-12 col-md-6">
+            <label class="form-label fw-bold text-secondary small mb-1"><i class="bi bi-search me-1"></i> Busca por Matrícula / RA</label>
+            <input type="text" name="busca_matricula" value="{{ busca_matricula }}" placeholder="Digite o RA exato ou parcial..." class="form-control py-2 shadow-none" inputmode="numeric">
+        </div>
+
+        <div class="col-12 col-md-6">
+            <label class="form-label fw-bold text-secondary small mb-1"><i class="bi bi-funnel-fill me-1"></i> Perfil de Acesso</label>
+            <select name="tipo" id="select-perfil-local" class="form-select py-2 shadow-none text-dark">
+                <option value="aluno" {% if tipo_filtro == 'aluno' %}selected{% endif %}>Alunos Matriculados</option>
+                <option value="professor" {% if tipo_filtro == 'professor' %}selected{% endif %}>Corpo Docente / Orientadores</option>
+                <option value="admin" {% if tipo_filtro == 'admin' %}selected{% endif %}>Administradores de Sistema</option>
+            </select>
+        </div>
+    </div>
+
+    <div id="wrapper-alfabeto" class="mt-3 pt-3 border-top border-light" {% if tipo_filtro != 'aluno' %}style="display:none;"{% endif %}>
+        <label class="form-label small fw-bold text-muted mb-2"><i class="bi bi-sort-alpha-down me-1"></i> Filtragem Alfabética (Inicial do Nome)</label>
+        <div class="d-flex flex-wrap gap-1">
+            <button type="button" onclick="aplicarLetra('')" class="btn btn-sm {% if not letra_filtro %}btn-primary bg-primario-evento border-0 fw-bold{% else %}btn-light border text-secondary{% endif %} px-2 py-1">Todos</button>
+            {% for letra in alfabeto %}
+            <button type="button" onclick="aplicarLetra('{{ letra }}')" class="btn btn-sm {% if letra_filtro == letra %}btn-primary bg-primario-evento border-0 fw-bold{% else %}btn-light border text-secondary{% endif %} px-2 py-1" style="min-width: 32px;">{{ letra }}</button>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="mt-4 pt-3 border-top border-light d-flex gap-2">
+        <button type="submit" class="btn btn-success flex-grow-1 fw-bold py-2 shadow-sm" style="background-color: #2e7d32; border: none;">
+            <i class="bi bi-sliders me-1"></i> BUSCAR
+        </button>
+        {% if busca_matricula or letra_filtro or tipo_filtro != 'aluno' %}
+            <a href="{{ url_for('admin.admin_gestao_usuarios') }}" class="btn btn-outline-secondary px-3 d-flex align-items-center" title="Limpar Tudo"><i class="bi bi-eraser-fill"></i></a>
+        {% endif %}
+    </div>
+</form>
+
+<div class="card p-0 shadow-sm border-0 bg-white rounded-3 overflow-hidden mb-3">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0 text-start">
+            <thead class="table-light border-bottom py-3">
+                <tr>
+                    <th class="p-3 text-secondary small text-uppercase fw-bold" style="width: 35%;">Nome Completo</th>
+                    <th class="p-3 text-secondary small text-uppercase fw-bold" style="width: 20%;">Identificador / RA</th>
+                    <th class="p-3 text-secondary small text-uppercase fw-bold" style="width: 15%;">Perfil</th>
+                    <th class="p-3 text-secondary small text-uppercase fw-bold" style="width: 15%;">Status</th>
+                    <th class="p-3 text-secondary small text-uppercase fw-bold text-end pe-4" style="width: 15%;">Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in usuarios %}
+                <tr class="border-bottom">
+                    <td class="p-3 text-dark fw-bold fs-6">{{ u.nome }}</td>
+                    <td class="p-3 font-monospace text-secondary fs-6">{{ u.matricula }}</td>
+                    <td class="p-3">
+                        <span class="badge bg-dark-subtle text-dark border px-2 py-1 text-uppercase small font-monospace">{{ u.tipo }}</span>
+                    </td>
+                    <td class="p-3">
+                        {% if u.ativo %}
+                            <span class="text-success small fw-bold d-inline-flex align-items-center gap-1">
+                                <i class="bi bi-circle-fill" style="font-size: 0.5rem;"></i> Ativo
+                            </span>
+                        {% else %}
+                            <span class="text-muted small text-decoration-line-through d-inline-flex align-items-center gap-1">
+                                <i class="bi bi-circle-fill" style="font-size: 0.5rem;"></i> Ocultado
+                            </span>
+                        {% endif %}
+                    </td>
+                    <td class="p-3 text-end pe-4">
+                        <div class="d-inline-flex gap-1">
+                            <a href="{{ url_for('admin.admin_editar_usuario', id=u.id) }}" class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1 fw-bold">
+                                <i class="bi bi-pencil-square"></i> Editar
+                            </a>
+                            <a href="{{ url_for('admin.admin_toggle_usuario', id=u.id) }}" class="btn btn-sm {% if u.ativo %}btn-outline-warning{% else %}btn-outline-success{% endif %} d-inline-flex align-items-center gap-1 fw-bold">
+                                {% if u.ativo %}<i class="bi bi-eye-slash-fill"></i> Ocultar{% else %}<i class="bi bi-eye-fill"></i> Reativar{% endif %}
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5" class="text-center p-5 text-muted">
+                        <i class="bi bi-people fs-2 mb-2 d-block text-light"></i>
+                        Nenhum registro encontrado correspondente aos filtros estabelecidos.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    
+    <div class="p-3 bg-light border-top border-light text-secondary fw-bold small d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-calculator me-1"></i> Total Encontrado: {{ total_resultados }} registro(s)</span>
+        <span class="text-muted font-monospace" style="font-size:0.75rem;">Exibindo no máx. 50 por página</span>
+    </div>
+</div>
+
+{% include 'componentes/_paginacao.html' %}
+
+<script>
+    // Gerencia a alteração das letras no input oculto e submete o formulário combinado
+    function aplicarLetra(letra) {
+        document.getElementById('input-letra').value = letra;
+        document.getElementById('input-letra').closest('form').submit();
+    }
+
+    // Monitora localmente o select para exibir/ocultar a caixa do alfabeto dinamicamente
+    document.getElementById('select-perfil-local').addEventListener('change', function() {
+        const wrapper = document.getElementById('wrapper-alfabeto');
+        if (this.value === 'aluno') {
+            wrapper.style.display = 'block';
+        } else {
+            wrapper.style.display = 'none';
+            document.getElementById('input-letra').value = ''; // Reseta a letra se mudar de perfil
+        }
+    });
+</script>
+{% endblock %}

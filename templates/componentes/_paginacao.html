@@ -1,0 +1,33 @@
+{% if page_obj and page_obj.pages > 1 %}
+<nav aria-label="Navegação de páginas" class="d-flex justify-content-center mt-4">
+    <ul class="pagination shadow-sm">
+        {% if page_obj.has_prev %}
+            <li class="page-item">
+                <button onclick="mudarPagina({{ page_obj.prev_num }})" class="page-link text-primario-evento">&laquo; Anterior</button>
+            </li>
+        {% else %}
+            <li class="page-item disabled"><span class="page-link">&laquo; Anterior</span></li>
+        {% endif %}
+
+        <li class="page-item active">
+            <span class="page-link bg-primario-evento border-0">Página {{ page_obj.page }} de {{ page_obj.pages }}</span>
+        </li>
+
+        {% if page_obj.has_next %}
+            <li class="page-item">
+                <button onclick="mudarPagina({{ page_obj.next_num }})" class="page-link text-primario-evento">Próxima &raquo;</button>
+            </li>
+        {% else %}
+            <li class="page-item disabled"><span class="page-link">Próxima &raquo;</span></li>
+        {% endif %}
+    </ul>
+</nav>
+
+<script>
+function mudarPagina(numeroPagina) {
+    const urlParams = new URLSearchParams(window.location.search);
+    urlParams.set('page', numeroPagina);
+    window.location.search = urlParams.toString();
+}
+</script>
+{% endif %}

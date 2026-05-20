@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% import 'componentes/macros.html' as ui %}
+
+{% block title %}Editar Perfil{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-md-8 col-lg-6">
+        <div class="mb-4">
+            <div class="d-flex justify-content-end mb-2">
+                <a href="{{ voltar_url }}" class="btn btn-sm btn-secondary fw-bold shadow-sm">
+                    <i class="bi bi-arrow-left-short"></i> Voltar
+                </a>
+            </div>
+            <h2 class="text-primario-evento fw-bold mb-0">Meu Perfil Acadêmico</h2>
+        </div>
+
+        {% call ui.card() %}
+            <form action="{{ url_for('auth.editar_perfil') }}" method="POST">
+                <input type="hidden" name="voltar_url" value="{{ voltar_url }}">
+                
+                <div class="mb-3">
+                    <label class="form-label fw-bold text-secondary">
+                        {% if usuario.tipo == 'aluno' %}Matrícula / RA{% else %}ID Corporativo{% endif %}
+                    </label>
+                    <input type="text" 
+                           value="{% if usuario.tipo == 'aluno' %}{{ usuario.matricula or '' }}{% else %}{{ usuario.id_corporativo or '' }}{% endif %}" 
+                           disabled class="form-control bg-light text-muted">
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold text-secondary">Login / Usuário de Acesso</label>
+                    <input type="text" name="matricula" 
+                           value="{{ usuario.login or '' }}" 
+                           class="form-control {% if usuario.status_conta != 'pendente' %}bg-light text-muted fw-bold{% else %}border-primary{% endif %}"
+                           {% if usuario.status_conta != 'pendente' %}readonly{% endif %}>
+                    
+                    {% if usuario.status_conta == 'pendente' %}
+                        <small class="text-primary d-block mt-1">Você pode personalizar seu login único de primeiro acesso.</small>
+                    {% else %}
+                        <small class="text-muted d-block mt-1">Identificador validado (alteração bloqueada).</small>
+                    {% endif %}
+                </div>
+                
+                {{ ui.campo_input(nome="nome", label="Nome Completo", valor=usuario.nome) }}
+                {{ ui.campo_input(nome="email", label="E-mail Institucional", tipo="email", valor=usuario.email_institucional or '') }}
+                {{ ui.campo_input(nome="nova_senha", label="Nova Senha (Opcional)", tipo="password", placeholder="Deixe em branco para manter", requerido=False) }}
+                
+                <button type="submit" class="btn btn-success w-100 py-2 fw-bold">Salvar Alterações</button>
+            </form>
+        {% endcall %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,107 @@
+{% extends 'base.html' %}
+{% import 'componentes/macros.html' as ui %}
+
+{% block title %}Gestão de Projetos{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-lg-10">
+        <div class="mb-4">
+            <div class="d-flex justify-content-end mb-2">
+                <a href="{{ url_for('admin.admin_painel') }}" class="btn btn-sm btn-secondary fw-bold shadow-sm">
+                    <i class="bi bi-arrow-left-short"></i> Voltar
+                </a>
+            </div>
+            <h2 class="text-primario-evento fw-bold mb-0">Gestão de Projetos e Atividades</h2>
+        </div>
+
+        <div class="card p-4 bg-light border border-light shadow-sm mb-4">
+            <h5 class="fw-bold text-dark mb-3" id="titulo_form">Nova Atividade</h5>
+            <form method="POST" action="{{ url_for('admin.admin_gestao_projetos') }}" class="row g-3 align-items-end">
+                <input type="hidden" name="projeto_id" id="projeto_id">
+                <div class="col-12 col-md-8">
+                    <label for="nome_projeto" class="form-label small fw-bold text-secondary">Título do Projeto / Palestra</label>
+                    <input type="text" name="nome_projeto" id="nome_projeto" class="form-control" placeholder="Ex: Sistemas ERP Integrados na Indústria" required>
+                </div>
+                <div class="col-12 col-md-4 d-flex gap-2">
+                    <button type="submit" id="btn_salvar" class="btn btn-success flex-grow-1 fw-bold py-2">Adicionar</button>
+                    <button type="button" id="btn_cancelar" onclick="cancelarEdicao()" class="btn btn-secondary py-2 fw-bold" style="display: none;">Cancelar</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="card p-0 shadow-sm border bg-white">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0 text-start">
+                    <thead class="table-light border-bottom">
+                        <tr>
+                            <th class="p-3 text-secondary small text-uppercase" style="width: 15%;">ID</th>
+                            <th class="p-3 text-secondary small text-uppercase">Título Cadastrado</th>
+                            <th class="p-3 text-secondary small text-uppercase text-center" style="width: 20%;">Status</th>
+                            <th class="p-3 text-secondary small text-uppercase text-end" style="width: 25%;">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in projetos %}
+                        <tr class="border-bottom" style="{% if p.ativo != 1 %}opacity: 0.65; background-color: #fafafa;{% endif %}">
+                            <td class="p-3 text-muted font-monospace">#{{ p.id }}</td>
+                            <td class="p-3 text-dark fw-bold">{{ p.nome_projeto }}</td>
+                            <td class="p-3 text-center">
+                                {% if p.ativo == 1 %}
+                                    <span class="badge bg-success-subtle text-success px-3 py-1 rounded-pill fw-bold border border-success">Ativo</span>
+                                {% else %}
+                                    <span class="badge bg-danger-subtle text-danger px-3 py-1 rounded-pill fw-bold border border-danger">Inativo</span>
+                                {% endif %}
+                            </td>
+                            <td class="p-3 text-end">
+                                <div class="d-inline-flex gap-2">
+                                    <button onclick="editar('{{ p.id }}', '{{ p.nome_projeto }}')" class="btn btn-sm btn-outline-primary fw-bold">Editar</button>
+                                    {% if p.ativo == 1 %}
+                                        <button onclick="confirmarDesativacao('{{ p.id }}', '{{ p.nome_projeto }}')" class="btn btn-sm btn-outline-danger fw-bold">Desativar</button>
+                                    {% else %}
+                                        <a href="{{ url_for('admin.admin_toggle_projeto', id=p.id) }}" class="btn btn-sm btn-success fw-bold text-white text-decoration-none">Reativar</a>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="4" class="text-center p-4 text-muted">Nenhum projeto ou palestra cadastrado no sistema.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function editar(id, nome) {
+        document.getElementById('projeto_id').value = id;
+        document.getElementById('nome_projeto').value = nome;
+        document.getElementById('nome_projeto').focus();
+        document.getElementById('titulo_form').innerText = "Modificar Projeto #" + id;
+        document.getElementById('btn_salvar').innerText = "Atualizar";
+        document.getElementById('btn_cancelar').style.display = "inline-block";
+    }
+    function cancelarEdicao() {
+        document.getElementById('projeto_id').value = "";
+        document.getElementById('nome_projeto').value = "";
+        document.getElementById('titulo_form').innerText = "Novo Projeto";
+        document.getElementById('btn_salvar').innerText = "Adicionar";
+        document.getElementById('btn_cancelar').style.display = "none";
+    }
+    function confirmarDesativacao(id, nome) {
+        fetch(`/admin/check-vinculos/projeto/${id}`)
+            .then(r => r.json())
+            .then(data => {
+                let msg = `Deseja realmente ocultar o projeto "${nome}" dos painéis?\n\n`;
+                if (data.alunos.length > 0) {
+                    msg += `⚠️ ATENÇÃO: ${data.alunos.length} usuários (alunos/professores) perderão o vínculo instantaneamente.`;
+                }
+                if (confirm(msg)) window.location.href = `/admin/projetos/toggle/${id}`;
+            });
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,24 @@
+/* Variáveis de cores para usar no projeto inteiro */
+:root {
+    --verde-escuro: #1C4E3D;
+    --verde-claro: #4EB09B;
+    --laranja-acao: #E86B35;
+}
+
+/* Customização de botões que o Bootstrap não tem */
+.btn-evento {
+    background-color: var(--laranja-acao);
+    color: white;
+    transition: transform 0.2s;
+}
+
+.btn-evento:hover {
+    transform: translateY(-2px);
+    filter: brightness(1.1);
+}
+
+/* Sombra suave para os cards */
+.card-custom {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    border-radius: 12px;
+}

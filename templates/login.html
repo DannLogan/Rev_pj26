@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% import 'componentes/macros.html' as ui %}
+
+{% block title %}Login - Portal Simpósio{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center align-items-center" style="min-height: 75vh;">
+    <div class="col-12 col-sm-8 col-md-6 col-lg-4">
+        {% call ui.card(titulo="Acesso ao Sistema", icone="lock-fill") %}
+            <form action="{{ url_for('auth.login') }}" method="POST">
+                {{ ui.campo_input(nome="matricula", label="Matrícula, Login ou RA", placeholder="Digite seu acesso") }}
+                {{ ui.campo_input(nome="senha", label="Senha", tipo="password", placeholder="••••••••") }}
+                
+                {{ ui.botao(texto="ACESSAR", tipo="submit", estilo="acao-evento w-100 py-2 fs-5 fw-bold mt-2") }}
+            </form>
+            
+            <div class="text-center mt-4 pt-2 border-top">
+                <p class="mb-1">Esqueceu sua senha? <a href="{{ url_for('auth.recuperar_senha') }}" class="text-primario-evento fw-bold text-decoration-none">Recuperar</a></p>
+                <p class="mb-0 mt-2"><a href="{{ url_for('auth.primeiro_acesso') }}" class="text-danger fw-bold text-decoration-none">Não tem conta? Cadastre-se</a></p>
+            </div>
+        {% endcall %}
+    </div>
+</div>
+{% endblock %}

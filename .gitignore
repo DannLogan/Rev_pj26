@@ -1,0 +1,18 @@
+# Python temporários
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ambientes virtuais
+.venv/
+venv/
+env/
+ENV/
+
+# Configurações de IDEs
+.vscode/
+.idea/
+
+# Arquivos de banco locais temporários (se houver)
+*.db-journal

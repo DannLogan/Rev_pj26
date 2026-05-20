@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% import 'componentes/macros.html' as ui %}
+
+{% block title %}Configurações do Sistema{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-md-8 col-lg-6">
+        <div class="mb-4">
+            <div class="d-flex justify-content-end mb-2">
+                <a href="{{ url_for('admin.admin_painel') }}" class="btn btn-sm btn-secondary fw-bold shadow-sm">
+                    <i class="bi bi-arrow-left-short"></i> Voltar
+                </a>
+            </div>
+            <h2 class="text-primario-evento fw-bold mb-0">Configurações Globais</h2>
+        </div>
+
+        {% call ui.card() %}
+            <form action="{{ url_for('admin.admin_configuracoes') }}" method="POST">
+                <input type="hidden" name="acao" value="mudar_edicao">
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-secondary">Edição Corrente Ativa:</label>
+                    <input type="text" value="{{ edicao }}" disabled class="form-control bg-light text-muted fw-bold text-center py-2 fs-5">
+                </div>
+                <div class="mb-4">
+                    <label class="form-label small fw-bold text-dark">Identificação do Próximo Ciclo:</label>
+                    <input type="text" name="nova_edicao" placeholder="Ex: 2026.2" required class="form-control py-2">
+                </div>
+                <button type="submit" class="btn btn-danger w-100 py-3 fw-bold shadow-sm mb-4" onclick="return confirm('Mudar a edição ativa ocultará os dados antigos dos painéis comuns. Deseja prosseguir?');">
+                    VIRAR SEMESTRE / NOVO CICLO
+                </button>
+            </form>
+
+            <div class="p-3 border rounded text-center bg-light">
+                <button type="button" onclick="baixarRelatorio()" class="btn btn-secondary px-4 fw-bold shadow-sm">
+                    <i class="bi bi-file-earmark-spreadsheet me-1"></i> EXPORTAR MAPA COMPLETO (CSV)
+                </button>
+            </div>
+        {% endcall %}
+    </div>
+</div>
+
+<script>
+async function baixarRelatorio() {
+    try {
+        const resposta = await fetch("{{ url_for('admin.exportar_presencas') }}");
+        if (!resposta.ok) throw new Error("Erro de resposta.");
+        const blob = await resposta.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = "relatorio_geral_presencas.csv";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+    } catch (erro) {
+        alert("❌ Falha na exportação de fechamento de dados.");
+    }
+}
+</script>
+{% endblock %}

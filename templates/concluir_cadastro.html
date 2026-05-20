@@ -1,0 +1,124 @@
+{% extends 'base.html' %}
+{% import 'componentes/macros.html' as ui %}
+
+{% block title %}Concluir Cadastro - Simpósio{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-md-8 col-lg-6">
+        {% call ui.card(titulo="Concluir Configuração de Conta", icone="check-circle-fill", classe_header="bg-primario-evento text-white") %}
+            <p class="text-muted text-center small mb-4">Verifique as suas informações e defina as suas credenciais definitivas.</p>
+            
+            <form method="POST" action="{{ url_for('auth.concluir_cadastro') }}">
+                
+                <div class="mb-3">
+                    <label class="form-label fw-bold text-secondary">
+                        {% if usuario.tipo == 'aluno' %}Matrícula / RA{% else %}Identificador Corporativo{% endif %}
+                    </label>
+                    <input type="text" class="form-control bg-light text-muted" 
+                           value="{% if usuario.tipo == 'aluno' %}{{ usuario.matricula or '' }}{% else %}{{ usuario.id_corporativo or '' }}{% endif %}" 
+                           disabled>
+                    <small class="text-muted d-block mt-1">Este identificador fixo não pode ser alterado.</small>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold text-secondary">Nome de Usuário (Login Único)</label>
+                    <input type="text" name="login" 
+                           value="{{ usuario.login or '' }}" 
+                           placeholder="Ex: aluno.nome" 
+                           required 
+                           pattern="[a-z0-9\.\-_]+" 
+                           oninput="this.value = this.value.toLowerCase().replace(/\s/g, '')" 
+                           class="form-control {% if usuario.status_conta and usuario.status_conta != 'pendente' %}bg-light text-muted fw-bold{% else %}border-primary{% endif %}"
+                           {% if usuario.status_conta and usuario.status_conta != 'pendente' %}readonly{% endif %}>
+                    
+                    {% if not usuario.status_conta or usuario.status_conta == 'pendente' %}
+                        <small class="text-primary d-block mt-1">Você pode alterar o ID provisório para um login único personalizado (Não é permitido espaços).</small>
+                    {% else %}
+                        <small class="text-muted d-block mt-1">O seu login único já foi homologado e não pode ser alterado.</small>
+                    {% endif %}
+                </div>
+
+                {{ ui.campo_input(nome="nome", label="Nome Completo", valor=form_data.get('nome', usuario.nome)) }}
+                {{ ui.campo_input(nome="email", label="E-mail Institucional", tipo="email", valor=form_data.get('email', usuario.email_institucional or '')) }}
+
+                {% if usuario.tipo == 'aluno' %}
+                <div class="mb-4">
+                    <label class="form-label fw-bold text-secondary">Confirme seus Cursos</label>
+                    <div class="border rounded p-3 bg-light" style="max-height: 120px; overflow-y: auto;">
+                        {% for c in cursos %}
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" name="curso" value="{{ c.id }}" id="curso_{{ c.id }}" {% if c.id|string in form_data.getlist('curso') or c.id|string in cursos_atuais_ids %}checked{% endif %}>
+                                <label class="form-check-label" for="curso_{{ c.id }}">{{ c.nome_curso }}</label>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% else %}
+                <div class="mb-4">
+                    <label class="form-label fw-bold text-secondary">Perfil de Acesso</label>
+                    <input type="text" class="form-control bg-light text-capitalize fw-bold" value="{{ usuario.tipo }}" disabled>
+                </div>
+                {% endif %}
+
+                <div class="p-3 bg-light border rounded mb-4">
+                    <h6 class="fw-bold text-primario-evento mb-3"><i class="bi bi-shield-fill-check"></i> Chaves de Recuperação</h6>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-secondary">Pergunta Secreta</label>
+                        <select name="pergunta" required class="form-select">
+                            <option value="">-- Selecione uma pergunta --</option>
+                            <option value="animal" {% if form_data.get('pergunta') == 'animal' %}selected{% endif %}>Qual o nome do seu primeiro animal de estimação?</option>
+                            <option value="escola" {% if form_data.get('pergunta') == 'escola' %}selected{% endif %}>Qual o nome da sua escola no ensino fundamental?</option>
+                            <option value="cidade" {% if form_data.get('pergunta') == 'cidade' %}selected{% endif %}>Em qual cidade você nasceu?</option>
+                            <option value="amigo" {% if form_data.get('pergunta') == 'amigo' %}selected{% endif %}>Qual o nome do seu melhor amigo de infância?</option>
+                        </select>
+                    </div>
+                    {{ ui.campo_input(nome="resposta", label="Resposta Secreta", valor=form_data.get('resposta', '')) }}
+                </div>
+
+                {{ ui.campo_input(nome="senha", label="Defina sua Nova Senha (Mínimo 6 dígitos)", tipo="password", erro_campo=erro_campo) }}
+
+                {{ ui.botao(texto="CONCLUIR CADASTRO", tipo="submit", estilo="acao-evento w-100 py-3 fw-bold fs-5 mt-2") }}
+            </form>
+        {% endcall %}
+    </div>
+</div>
+{% endblock %}
+
+
+{# ===================================================================== #}
+{# REGRAS DE PORTAL CATIVO (Bloqueio Total de Navegação Lateral/Superior)#}
+{# ===================================================================== #}
+
+{# 1. OCULTA A BARRA LATERAL #}
+{% block sidebar %}{% endblock %}
+
+{# 2. REFATORADO: Sobrescreve a Navbar inteira para injetar o botão Sair com segurança #}
+{% block navbar %}
+<nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom px-4 py-3 shadow-sm">
+    <div class="container-fluid p-0 d-flex align-items-center">
+        
+        <span class="navbar-text fw-bold text-dark fs-5 text-truncate me-auto">
+            Olá, <span class="text-primary">{{ session.get('nome', 'Usuário') }}</span>
+        </span>
+        
+        <div class="d-flex align-items-center">
+            <a href="{{ url_for('auth.logout') }}" class="btn btn-danger fw-bold shadow-sm px-3">
+                <i class="bi bi-box-arrow-right me-1"></i> Sair do Sistema
+            </a>
+        </div>
+        
+    </div>
+</nav>
+{% endblock %}
+
+{# 3. AJUSTA O LAYOUT DA TELA PARA 100% DA LARGURA #}
+{% block styles %}
+<style>
+    main, .conteudo-principal, #main-content { 
+        width: 100% !important; 
+        margin-left: 0 !important; 
+        padding-left: 0 !important;
+    }
+</style>
+{% endblock %}

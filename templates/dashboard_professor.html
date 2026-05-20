@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% import 'componentes/macros.html' as ui %}
+
+{% block title %}Painel do Professor{% endblock %}
+
+{% block content %}
+<div class="mb-4 animate-fade-in">
+    <h2 class="text-primario-evento fw-bold mb-1">Painel do Orientador</h2>
+    <p class="text-muted mb-0">Selecione uma banca ou palestra sob sua responsabilidade para realizar a listagem de chamadas.</p>
+</div>
+
+<h5 class="fw-bold text-dark mb-3"><i class="bi bi-journals text-success me-1"></i> Projetos Sob Minha Supervisão</h5>
+
+<div class="row g-4">
+    {% for p in projetos %}
+    <div class="col-12 col-md-6 col-lg-6">
+        {% call ui.card(titulo=p.nome_projeto, icone="folder-symlink-fill") %}
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+                <span class="text-muted small"><i class="bi bi-calendar2-check"></i> Ciclo Ativo: <strong>{{ edicao }}</strong></span>
+                <span class="badge bg-success-subtle border border-success text-success px-3 py-2 rounded-pill fw-bold">
+                    <i class="bi bi-people-fill me-1"></i> {{ p.total_presentes }} / {{ p.total_inscritos }} Presentes
+                </span>
+            </div>
+            <a href="{{ url_for('professor.professor_projeto', projeto_id=p.id) }}" class="btn btn-success w-100 py-3 fw-bold shadow-sm" style="background-color: #65a78c !important; border:none;">
+                <i class="bi bi-arrow-right-circle-fill me-1"></i> ACESSAR CONTROLE DE CHAMADA
+            </a>
+        {% endcall %}
+    </div>
+    {% else %}
+    <div class="col-12">
+        <div class="card text-center p-5 border border-dashed text-muted bg-white">
+            <i class="bi bi-folder-x fs-1 mb-2"></i>
+            <p class="mb-0">Nenhum projeto ou palestra está vinculado ao seu ID corporativo nesta edição do simpósio.</p>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

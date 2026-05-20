@@ -1,0 +1,36 @@
+{# Componente: Botão Padronizado #}
+{% macro botao(texto, estilo="primary", tipo="button", icone="", classe="", id="") %}
+<button type="{{ tipo }}" class="btn btn-{{ estilo }} d-inline-flex align-items-center gap-2 shadow-sm {{ classe }}" {% if id %}id="{{ id }}"{% endif %}>
+    {% if icone %}<i class="bi bi-{{ icone }}"></i>{% endif %}
+    {{ texto }}
+</button>
+{% endmacro %}
+
+{# Componente: Campo de Input de Formulário #}
+{% macro campo_input(nome, label, tipo="text", valor="", placeholder="", erro_campo="", requerido=True) %}
+<div class="mb-3">
+    <label for="{{ nome }}" class="form-label fw-bold text-secondary">{{ label }}</label>
+    <input type="{{ tipo }}" 
+           class="form-control {% if erro_campo == nome %}is-invalid{% endif %}" 
+           id="{{ nome }}" 
+           name="{{ nome }}" 
+           value="{{ valor or '' }}" 
+           placeholder="{{ placeholder }}"
+           {% if requerido %}required{% endif %}>
+</div>
+{% endmacro %}
+
+{# Componente: Card de Conteúdo #}
+{% macro card(titulo="", icone="", classe_header="bg-light") %}
+<div class="card shadow-sm border-0 mb-4 animate-fade-in">
+    {% if titulo %}
+    <div class="card-header {{ classe_header }} d-flex align-items-center gap-2 py-3">
+        {% if icone %}<i class="bi bi-{{ icone }} fs-5 text-primary"></i>{% endif %}
+        <h5 class="card-title mb-0 fw-bold text-dark">{{ titulo }}</h5>
+    </div>
+    {% endif %}
+    <div class="card-body p-4">
+        {{ caller() }}
+    </div>
+</div>
+{% endmacro %}
