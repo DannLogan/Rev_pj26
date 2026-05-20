@@ -192,7 +192,8 @@ def editar_usuario(id_usuario):
         return redirect(url_for('admin.listar_usuarios'))
 
     return render_template(
-        'admin_editar_usuario.html', 
+        'admin_form_usuario.html', 
+        acao='Editar', 
         usuario=usuario, 
         identificador=identificador_valor
     )
