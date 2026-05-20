@@ -89,7 +89,7 @@
                     </td>
                     <td class="p-3 text-end pe-4">
                         <div class="d-inline-flex gap-1">
-                            <a href="{{ url_for('admin.editar_usuario', id_usuario=u.id) }}" class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1 fw-bold"></a>
+                            <a href="{{ url_for('admin.editar_usuario', id_usuario=u.id) }}" class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1 fw-bold">
                                 <i class="bi bi-pencil-square"></i> Editar
                             </a>
                             <a href="{{ url_for('admin.admin_toggle_usuario', id=u.id) }}" class="btn btn-sm {% if u.ativo %}btn-outline-warning{% else %}btn-outline-success{% endif %} d-inline-flex align-items-center gap-1 fw-bold">
