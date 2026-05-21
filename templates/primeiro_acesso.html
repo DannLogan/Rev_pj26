@@ -9,7 +9,7 @@
         {% call ui.card(titulo="Criar Conta Acadêmica", icone="person-plus-fill") %}
             <p class="text-muted text-center small mb-4">Preencha os campos abaixo para realizar o seu cadastro no portal.</p>
             
-            <form action="{{ url_for('auth.primeiro_acesso') }}" method="POST">
+            <form action="{{ url_for('auth.primeiro_acesso') }}" method="POST" id="form-primeiro-acesso">
                 {{ ui.campo_input(nome="matricula", label="Matrícula / RA (10 dígitos)", placeholder="Ex: 2024101010", valor=form_data.get('matricula', ''), erro_campo=erro_campo) }}
                 
                 <div class="mb-3">
@@ -54,4 +54,46 @@
         {% endcall %}
     </div>
 </div>
+{% endblock %}
+
+{# 🚀 Bloco de scripts isolado para organização total do Jinja #}
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const campoMatricula = document.querySelector('input[name="matricula"]');
+        const form = document.getElementById('form-primeiro-acesso');
+
+        // 1. Aplica a trava física de digitação (Máximo 10 caracteres e aceita apenas números)
+        if (campoMatricula) {
+            campoMatricula.setAttribute('maxlength', '10');
+            
+            campoMatricula.addEventListener('input', function() {
+                this.value = this.value.replace(/\D/g, '');
+            });
+        }
+
+        // 2. Validações dinâmicas ao interceptar o envio
+        if (form) {
+            form.addEventListener('submit', function(e) {
+                const campoSenha = document.querySelector('input[name="senha"]');
+                
+                if (campoMatricula) {
+                    const valorMatricula = campoMatricula.value.trim();
+                    if (valorMatricula.length !== 10) {
+                        e.preventDefault();
+                        alert('Erro de Cadastro: A Matrícula / RA precisa conter exatamente 10 dígitos numéricos!');
+                        campoMatricula.focus();
+                        return;
+                    }
+                }
+                
+                if (campoSenha && campoSenha.value.trim().length < 6) {
+                    e.preventDefault();
+                    alert('Segurança: A sua senha de acesso precisa ter pelo menos 6 caracteres!');
+                    campoSenha.focus();
+                }
+            });
+        }
+    });
+</script>
 {% endblock %}

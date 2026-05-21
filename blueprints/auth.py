@@ -69,6 +69,10 @@ def primeiro_acesso():
         if len(senha_real) < 6:
             flash("Erro de Segurança: A senha deve conter no mínimo 6 caracteres.", "erro")
             return render_template('primeiro_acesso.html', cursos=cursos, form_data=form_data, erro_campo="senha")
+        
+        if not matricula.isdigit() or len(matricula) != 10:
+            flash("Erro de Validação: O RA/Matrícula deve conter exatamente 10 dígitos numéricos.", "erro")
+            return render_template('primeiro_acesso.html', cursos=cursos, form_data=form_data, erro_campo="matricula")
 
         conflito = auth_repository.verificar_duplicidade_cadastro(matricula, login_form, email)
         if conflito:
