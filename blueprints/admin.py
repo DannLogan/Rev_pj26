@@ -18,21 +18,22 @@ admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 def admin_painel():
     return render_template('painel_admin.html')
 
-@admin_bp.route('/projeto/<int:projeto_id>/desativar')
+@admin_bp.route('/admin/projeto/<int:projeto_id>/desativar')
 @requer_autenticacao
 @requer_perfil('admin')
 def desativar_projeto(projeto_id):
     id_edicao = obter_configuracao_global('edicao_ativa')
     
-    # Validação de segurança em backend
+    # 1. Validação de segurança em backend que criamos
     if admin_repository.verificar_vinculos_projeto(projeto_id, id_edicao):
         flash("Ação negada! Este projeto possui vínculos ativos com alunos ou professores.", "erro")
-        return redirect(url_for('admin.gestao_projetos'))
+        return redirect(url_for('admin.admin_gestao_projetos'))
         
-    # Se passar, executa a desativação padrão
-    admin_repository.atualizar_status_projeto(projeto_id, ativo=0)
+    # 2. CORREÇÃO AQUI: Mudado para o nome real do seu repositório
+    admin_repository.alternar_status_projeto(projeto_id, ativo=0)
+    
     flash("Projeto desativado com sucesso.", "sucesso")
-    return redirect(url_for('admin.gestao_projetos'))
+    return redirect(url_for('admin.admin_gestao_projetos'))
 
 @admin_bp.route('/check-vinculos/<string:tipo>/<int:id>')
 @requer_autenticacao
