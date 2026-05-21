@@ -139,14 +139,25 @@ def recuperar_senha():
 
     if request.method == 'POST':
         form_data = request.form
-        usuario = auth_repository.buscar_usuario_por_identificador(form_data.get('matricula', '').strip())
+        matricula_form = form_data.get('matricula', '').strip()
+        nova_senha = form_data.get('nova_senha', '') # 🚀 Captura a nova senha enviada
+
+        usuario = auth_repository.buscar_usuario_por_identificador(matricula_form)
         
         if not usuario:
             flash("Matrícula ou Login não encontrados.", "erro")
             return render_template('recuperar.html', form_data=form_data, erro_campo='matricula')
 
+        # 🚀 TRAVA DE SEGURANÇA BACKEND: Verifica o tamanho da nova senha informada
+        if len(nova_senha) < 6:
+            flash("Erro de Segurança: A nova senha deve conter no mínimo 6 caracteres.", "erro")
+            return render_template('recuperar.html', form_data=form_data, erro_campo='nova_senha')
+
+        # Se o tamanho da senha estiver correto, prossegue para validar a pergunta/resposta
         if usuario['pergunta_seguranca'] == form_data.get('pergunta') and check_password_hash(usuario['resposta_seguranca'], form_data.get('resposta', '').strip().lower()):
-            auth_repository.atualizar_senha_recuperada(usuario['id'], form_data.get('nova_senha', ''))
+            
+            # Executa a atualização segura no banco de dados
+            auth_repository.atualizar_senha_recuperada(usuario['id'], nova_senha)
             flash("Senha alterada! Acesse com a nova credencial.", "sucesso")
             return redirect(url_for('auth.login'))
         else:

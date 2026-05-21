@@ -9,7 +9,7 @@
         {% call ui.card(titulo="Recuperar Senha", icone="shield-key") %}
             <p class="text-muted text-center small mb-4">Use sua pergunta chave para redefinir sua credencial.</p>
             
-            <form method="POST" action="{{ url_for('auth.recuperar_senha') }}">
+            <form method="POST" action="{{ url_for('auth.recuperar_senha') }}" id="form-recuperar">
                 {{ ui.campo_input(nome="matricula", label="Sua Matrícula ou ID", placeholder="Ex: 0123456789", valor=form_data.get('matricula', ''), erro_campo=erro_campo) }}
                 
                 <div class="mb-3">
@@ -24,7 +24,7 @@
                 </div>
 
                 {{ ui.campo_input(nome="resposta", label="Sua Resposta Secreta", valor=form_data.get('resposta', ''), erro_campo=erro_campo) }}
-                {{ ui.campo_input(nome="nova_senha", label="Nova Senha", tipo="password", erro_campo=erro_campo) }}
+                {{ ui.campo_input(nome="nova_senha", label="Nova Senha (Mínimo 6 caracteres)", tipo="password", erro_campo=erro_campo) }}
 
                 {{ ui.botao(texto="SALVAR NOVA SENHA", tipo="submit", estilo="success w-100 py-2 fw-bold mt-2") }}
             </form>
@@ -35,4 +35,15 @@
         {% endcall %}
     </div>
 </div>
+
+<script>
+    document.getElementById('form-recuperar').addEventListener('submit', function(e) {
+        const campoSenha = document.querySelector('input[name="nova_senha"]');
+        if (campoSenha && campoSenha.value.trim().length < 6) {
+            e.preventDefault(); // Impede o envio se for menor que 6
+            alert('Segurança: A sua nova senha precisa ter pelo menos 6 caracteres!');
+            campoSenha.focus();
+        }
+    });
+</script>
 {% endblock %}
