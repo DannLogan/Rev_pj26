@@ -63,7 +63,13 @@ def primeiro_acesso():
         matricula = form_data.get('matricula', '').strip()
         login_form = form_data.get('login', '').strip().lower().replace(" ", "")
         email = form_data.get('email', '').strip()
-        
+        senha_real = form_data.get('senha', '') # 🚀 Captura o valor real digitado pelo usuário
+
+        # 🚀 CORREÇÃO: Mede o tamanho da variável real digitada na tela
+        if len(senha_real) < 6:
+            flash("Erro de Segurança: A senha deve conter no mínimo 6 caracteres.", "erro")
+            return render_template('primeiro_acesso.html', cursos=cursos, form_data=form_data, erro_campo="senha")
+
         conflito = auth_repository.verificar_duplicidade_cadastro(matricula, login_form, email)
         if conflito:
             flash(f"Este {conflito} já consta registrado no sistema!", "erro")
@@ -71,14 +77,10 @@ def primeiro_acesso():
 
         auth_repository.cadastrar_primeiro_acesso_aluno(
             matricula, login_form, form_data.get('nome', '').strip(), email,
-            form_data.get('senha', ''), form_data.get('pergunta'), form_data.get('resposta', '').strip().lower(),
+            senha_real, form_data.get('pergunta'), form_data.get('resposta', '').strip().lower(),
             request.form.getlist('curso')
         )
-        if len('senha') < 6:
-            flash("Erro de Segurança: A senha deve conter no mínimo 6 caracteres.", "erro")
-            cursos = admin_repository.listar_todos_cursos()
-            return render_template('primeiro_acesso.html', cursos=cursos, form_data=form_data, erro_campo="senha")
-
+        
         flash("Cadastro realizado com sucesso! Faça login.", "sucesso")
         return redirect(url_for('auth.login'))
 
