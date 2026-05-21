@@ -275,9 +275,16 @@ def admin_configuracoes():
     id_edicao = obter_configuracao_global('edicao_ativa')
     texto_edicao = "Não configurado"
     
-    if id_edicao and str(id_edicao).isdigit():
+    if id_edicao:
+        id_edicao_str = str(id_edicao).strip()
         with admin_repository.obter_conexao() as cursor:
-            cursor.execute("SELECT nome_edicao FROM edicoes WHERE id = %s", (int(id_edicao),))
+            # Se for puramente número, busca pelo ID da tabela edicoes
+            if id_edicao_str.isdigit():
+                cursor.execute("SELECT nome_edicao FROM edicoes WHERE id = %s", (int(id_edicao_str),))
+            # Se for texto, busca direto pelo nome correspondente
+            else:
+                cursor.execute("SELECT nome_edicao FROM edicoes WHERE nome_edicao = %s", (id_edicao_str,))
+                
             resultado = cursor.fetchone()
             if resultado:
                 texto_edicao = resultado['nome_edicao']
