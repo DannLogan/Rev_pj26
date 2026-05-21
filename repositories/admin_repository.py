@@ -106,11 +106,10 @@ def alternar_status_projeto(id_projeto: int) -> str:
     return None
 
 def listar_projetos_ativos_por_edicao(id_edicao: str) -> list:
-    """Retorna apenas os projetos ativos associados ao ciclo corrente."""
+    """Retorna os projetos do sistema que estão com status ativo."""
+    sql = "SELECT id, nome_projeto FROM projetos WHERE ativo = 1 ORDER BY nome_projeto ASC"
     with obter_conexao() as cursor:
-        id_real_edicao = _obter_id_edicao_por_nome(cursor, id_edicao)
-        sql = "SELECT id, nome_projeto FROM projetos WHERE id_edicao = %s AND ativo = 1 ORDER BY nome_projeto ASC"
-        cursor.execute(sql, (id_real_edicao,))
+        cursor.execute(sql)
         return cursor.fetchall()
 
 def listar_usuarios_painel_paginado(busca_matricula: str, tipo_filtro: str, letra_filtro: str, pagina: int, limite: int = 50) -> tuple:
