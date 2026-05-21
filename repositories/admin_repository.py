@@ -227,6 +227,13 @@ def alternar_status_usuario(id_usuario: int) -> dict:
             return {"nome": usuario['nome'], "novo_estado": novo_estado}
     return None
 
+def preparar_novo_ciclo_limpeza(cursor):
+    """Apaga os vínculos temporários (supervisores) e zera tokens de QR Code."""
+    # Como já estamos dentro de um bloco 'with obter_conexao()', 
+    # usamos o mesmo cursor que foi passado por parâmetro!
+    cursor.execute("DELETE FROM supervisores_projeto;")
+    cursor.execute("UPDATE alunos SET qr_token = NULL;")
+
 def atualizar_edicao_ativa(nova_edicao: str) -> str:
     nova_edicao = str(nova_edicao).strip()
     
@@ -252,6 +259,9 @@ def atualizar_edicao_ativa(nova_edicao: str) -> str:
             RETURNING id
         """, (nova_edicao,))
         id_final = cursor.fetchone()['id']
+        
+        # 🚀 PASSO 4 AQUI: Limpa os vínculos do ciclo anterior ANTES de ativar o novo
+        preparar_novo_ciclo_limpeza(cursor)
             
         cursor.execute("""
             UPDATE configuracoes 
@@ -260,7 +270,23 @@ def atualizar_edicao_ativa(nova_edicao: str) -> str:
         """, (str(id_final),))
         
         return 'sucesso'
+    
 
+def verificar_vinculos_projeto(id_projeto: int, id_edicao_ativa: int) -> bool:
+    """Retorna True se o projeto tiver alunos inscritos ou supervisores na edição atual."""
+    sql = """
+        SELECT EXISTS (
+            SELECT 1 FROM inscricoes WHERE id_projeto = %s AND id_edicao = %s
+            UNION
+            SELECT 1 FROM supervisores_projeto WHERE id_projeto = %s
+        ) AS possui_vinculo;
+    """
+    with obter_conexao() as cursor:
+        cursor.execute(sql, (id_projeto, id_edicao_ativa, id_projeto))
+        resultado = cursor.fetchone()
+        return resultado['possui_vinculo'] if resultado else False
+
+    
 def processar_importacao_csv(linhas: list, id_edicao: str) -> tuple:
     sucessos = 0
     erros = 0

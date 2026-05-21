@@ -18,14 +18,14 @@
         <div class="card p-4 bg-light border border-light shadow-sm mb-4">
             <h5 class="fw-bold text-dark mb-3" id="titulo_form">Nova Atividade</h5>
             <form method="POST" action="{{ url_for('admin.admin_gestao_projetos') }}" class="row g-3 align-items-end">
-                <input type="hidden" name="projeto_id" id="projeto_id">
                 <div class="col-12 col-md-8">
                     <label for="nome_projeto" class="form-label small fw-bold text-secondary">Título do Projeto / Palestra</label>
                     <input type="text" name="nome_projeto" id="nome_projeto" class="form-control" placeholder="Ex: Sistemas ERP Integrados na Indústria" required>
                 </div>
-                <div class="col-12 col-md-4 d-flex gap-2">
-                    <button type="submit" id="btn_salvar" class="btn btn-success flex-grow-1 fw-bold py-2">Adicionar</button>
-                    <button type="button" id="btn_cancelar" onclick="cancelarEdicao()" class="btn btn-secondary py-2 fw-bold" style="display: none;">Cancelar</button>
+                <div class="col-12 col-md-4 d-flex">
+                    <button type="submit" id="btn_salvar" class="btn btn-success flex-grow-1 fw-bold py-2">
+                        <i class="bi bi-plus-circle"></i> Adicionar
+                    </button>
                 </div>
             </form>
         </div>
@@ -55,9 +55,22 @@
                             </td>
                             <td class="p-3 text-end">
                                 <div class="d-inline-flex gap-2">
-                                    <button onclick="editar('{{ p.id }}', '{{ p.nome_projeto }}')" class="btn btn-sm btn-outline-primary fw-bold">Editar</button>
                                     {% if p.ativo == 1 %}
-                                        <button onclick="confirmarDesativacao('{{ p.id }}', '{{ p.nome_projeto }}')" class="btn btn-sm btn-outline-danger fw-bold">Desativar</button>
+                                        {% if p.possui_vinculos %}
+                                            <button class="btn btn-sm btn-outline-secondary fw-bold" 
+                                                    disabled 
+                                                    data-bs-toggle="tooltip" 
+                                                    data-bs-placement="top" 
+                                                    title="Bloqueado: Existem alunos ou professores vinculados nesta edição.">
+                                                <i class="bi bi-lock-fill"></i> Desativar
+                                            </button>
+                                        {% else %}
+                                            <a href="{{ url_for('admin.desativar_projeto', projeto_id=p.id) }}" 
+                                               class="btn btn-sm btn-outline-danger fw-bold text-decoration-none"
+                                               onclick="return confirm('Deseja realmente desativar o projeto «{{ p.nome_projeto }}»?');">
+                                                Desativar
+                                            </a>
+                                        {% endif %}
                                     {% else %}
                                         <a href="{{ url_for('admin.admin_toggle_projeto', id=p.id) }}" class="btn btn-sm btn-success fw-bold text-white text-decoration-none">Reativar</a>
                                     {% endif %}
@@ -77,31 +90,12 @@
 </div>
 
 <script>
-    function editar(id, nome) {
-        document.getElementById('projeto_id').value = id;
-        document.getElementById('nome_projeto').value = nome;
-        document.getElementById('nome_projeto').focus();
-        document.getElementById('titulo_form').innerText = "Modificar Projeto #" + id;
-        document.getElementById('btn_salvar').innerText = "Atualizar";
-        document.getElementById('btn_cancelar').style.display = "inline-block";
-    }
-    function cancelarEdicao() {
-        document.getElementById('projeto_id').value = "";
-        document.getElementById('nome_projeto').value = "";
-        document.getElementById('titulo_form').innerText = "Novo Projeto";
-        document.getElementById('btn_salvar').innerText = "Adicionar";
-        document.getElementById('btn_cancelar').style.display = "none";
-    }
-    function confirmarDesativacao(id, nome) {
-        fetch(`/admin/check-vinculos/projeto/${id}`)
-            .then(r => r.json())
-            .then(data => {
-                let msg = `Deseja realmente ocultar o projeto "${nome}" dos painéis?\n\n`;
-                if (data.alunos.length > 0) {
-                    msg += `⚠️ ATENÇÃO: ${data.alunos.length} usuários (alunos/professores) perderão o vínculo instantaneamente.`;
-                }
-                if (confirm(msg)) window.location.href = `/admin/projetos/toggle/${id}`;
-            });
-    }
+    // Inicializa os Tooltips do Bootstrap para exibir o aviso flutuante ao passar o mouse no botão bloqueado
+    document.addEventListener('DOMContentLoaded', function () {
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl)
+        })
+    });
 </script>
 {% endblock %}
