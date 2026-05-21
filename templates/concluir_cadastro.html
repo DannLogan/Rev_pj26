@@ -76,15 +76,25 @@
                     {{ ui.campo_input(nome="resposta", label="Resposta Secreta", valor=form_data.get('resposta', '')) }}
                 </div>
 
-                {{ ui.campo_input(nome="senha", label="Defina sua Nova Senha (Mínimo 6 dígitos)", tipo="password", erro_campo=erro_campo) }}
+                {{ ui.campo_input(nome="senha", label="Defina sua Nova Senha (Mínimo 6 caracteres)", tipo="password", erro_campo=erro_campo) }}
 
                 {{ ui.botao(texto="CONCLUIR CADASTRO", tipo="submit", estilo="acao-evento w-100 py-3 fw-bold fs-5 mt-2") }}
             </form>
         {% endcall %}
     </div>
 </div>
-{% endblock %}
 
+<script>
+    document.getElementById('form-usuario').addEventListener('submit', function(e) {
+        const campoSenha = document.querySelector('input[name="senha"]');
+        if (campoSenha && campoSenha.value.trim().length < 6) {
+            e.preventDefault(); // Barra o envio do formulário
+            alert('Segurança: A sua nova senha precisa ter pelo menos 6 caracteres!');
+            campoSenha.focus();
+        }
+    });
+</script>
+{% endblock %}
 
 {# ===================================================================== #}
 {# REGRAS DE PORTAL CATIVO (Bloqueio Total de Navegação Lateral/Superior)#}

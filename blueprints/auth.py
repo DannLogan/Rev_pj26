@@ -88,6 +88,20 @@ def concluir_cadastro():
 
     if request.method == 'POST':
         form_data = request.form
+        senha_form = form_data.get('senha', '')
+        
+        # 🚀 TRAVA DE SEGURANÇA: Bloqueia senhas menores que 6 caracteres
+        if len(senha_form) < 6:
+            flash("Erro de Segurança: A senha deve conter no mínimo 6 caracteres.", "erro")
+            return render_template(
+                'concluir_cadastro.html', 
+                cursos=cursos, 
+                usuario=usuario, 
+                form_data=form_data, 
+                cursos_atuais_ids=cursos_atuais_ids,
+                erro_campo="senha"
+            )
+            
         login_form = form_data.get('login', '').strip().lower().replace(" ", "")
         
         if usuario['status_conta'] == 'pendente' and login_form != usuario['login']:
@@ -100,7 +114,7 @@ def concluir_cadastro():
 
         auth_repository.salvar_conclusao_cadastro(
             session['usuario_id'], form_data.get('nome', '').strip(), form_data.get('email', '').strip(),
-            login_final, form_data.get('senha', ''), form_data.get('pergunta'), 
+            login_final, senha_form, form_data.get('pergunta'), 
             form_data.get('resposta', '').strip().lower(), request.form.getlist('curso')
         )
         
