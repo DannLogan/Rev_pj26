@@ -74,6 +74,11 @@ def primeiro_acesso():
             form_data.get('senha', ''), form_data.get('pergunta'), form_data.get('resposta', '').strip().lower(),
             request.form.getlist('curso')
         )
+        if len('senha') < 6:
+            flash("Erro de Segurança: A senha deve conter no mínimo 6 caracteres.", "erro")
+            cursos = admin_repository.listar_todos_cursos()
+            return render_template('primeiro_acesso.html', cursos=cursos, form_data=form_data, erro_campo="senha")
+
         flash("Cadastro realizado com sucesso! Faça login.", "sucesso")
         return redirect(url_for('auth.login'))
 
