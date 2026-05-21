@@ -1,8 +1,21 @@
 from db import obter_conexao
 
 def _obter_id_edicao_por_nome(cursor, nome_edicao: str) -> int:
-    """Função utilitária interna para obter o ID numérico a partir do nome do ciclo."""
-    cursor.execute("SELECT id FROM edicoes WHERE nome_edicao = %s", (str(nome_edicao).strip(),))
+    """Função utilitária interna robusta que aceita tanto o ID numérico quanto o Nome textual."""
+    if not nome_edicao:
+        return None
+        
+    nome_edicao_limpo = str(nome_edicao).strip()
+    
+    # Se o valor recebido for puramente numérico (o ID '7' vindo do banco), retorna ele mesmo
+    if nome_edicao_limpo.isdigit():
+        cursor.execute("SELECT id FROM edicoes WHERE id = %s", (int(nome_edicao_limpo),))
+        res = cursor.fetchone()
+        if res:
+            return res['id']
+            
+    # Caso receba o nome textual (fallback de segurança), busca o ID correspondente
+    cursor.execute("SELECT id FROM edicoes WHERE nome_edicao = %s", (nome_edicao_limpo,))
     res = cursor.fetchone()
     return res['id'] if res else None
 
