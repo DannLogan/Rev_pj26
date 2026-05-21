@@ -68,22 +68,45 @@ def admin_toggle_curso(id):
 @requer_autenticacao
 @requer_perfil('admin')
 def admin_gestao_projetos():
+    id_edicao = obter_configuracao_global('edicao_ativa')
+
     if request.method == 'POST':
         nome = request.form.get('nome_projeto', '').strip()
         projeto_id = request.form.get('projeto_id') or None
         admin_repository.salvar_projeto(nome, projeto_id)
         flash("Projeto processado com sucesso!", "sucesso")
 
-    projetos = admin_repository.listar_todos_projetos()
+    projetos_cru = admin_repository.listar_todos_projetos()
+    
+    projetos = []
+    for p in projetos_cru:
+        proj_dict = dict(p) # Garante que aceita novas chaves
+        proj_dict['possui_vinculos'] = admin_repository.verificar_vinculos_projeto(proj_dict['id'], id_edicao)
+        projetos.append(proj_dict)
+
     return render_template('admin_projetos.html', projetos=projetos)
+
 
 @admin_bp.route('/projetos/toggle/<int:id>')
 @requer_autenticacao
 @requer_perfil('admin')
 def admin_toggle_projeto(id):
-    nome_proj = admin_repository.alternar_status_projeto(id)
-    if nome_proj:
-        flash(f"Status do projeto '{nome_proj}' modificado!", "sucesso")
+    id_edicao = obter_configuracao_global('edicao_ativa')
+    
+    with admin_repository.obter_conexao() as cursor:
+        cursor.execute("SELECT ativo FROM projetos WHERE id = %s", (id,))
+        proj = cursor.fetchone()
+        
+    if proj:
+        if proj['ativo'] == 1:
+            if admin_repository.verificar_vinculos_projeto(id, id_edicao):
+                flash("Operação negada! Este projeto possui alunos inscritos ou professores vinculados.", "erro")
+                return redirect(url_for('admin.admin_gestao_projetos'))
+                
+        nome_proj = admin_repository.alternar_status_projeto(id)
+        if nome_proj:
+            flash(f"Status do projeto '{nome_proj}' modificado!", "sucesso")
+            
     return redirect(url_for('admin.admin_gestao_projetos'))
 
 @admin_bp.route('/usuarios', methods=['GET'])
