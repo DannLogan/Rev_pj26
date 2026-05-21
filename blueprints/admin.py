@@ -132,7 +132,8 @@ def admin_gestao_usuarios():
 @requer_autenticacao
 @requer_perfil('admin')
 def admin_novo_usuario():
-    # COMO AJUSTAR NA ROTA DE CADASTRO:
+    id_edicao = obter_configuracao_global('edicao_ativa')
+    
     if request.method == 'POST':
         nome = request.form.get('nome', '').strip()
         tipo = request.form.get('tipo')
@@ -145,7 +146,6 @@ def admin_novo_usuario():
                 if conflito:
                     flash("Esta credencial/RA já existe no banco.", "erro")
                 else:
-                    id_edicao = obter_configuracao_global('edicao_ativa')
                     admin_repository.cadastrar_usuario_manual(
                         nome, matricula, tipo, generate_password_hash(matricula), str(uuid.uuid4()),
                         request.form.getlist('cursos_ids'), request.form.getlist('projetos_ids'),
@@ -155,14 +155,20 @@ def admin_novo_usuario():
                     return redirect(url_for('admin.admin_gestao_usuarios'))
             except Exception as e:
                 flash(f"Erro ao salvar: {e}", "erro")
-    cursos = admin_repository.listar_todos_cursos()
-    造型_projetos = admin_repository.listar_todos_projetos()
-    return render_template('admin_form_usuario.html', cursos=cursos, projetos=造型_projetos, form_data=request.form, acao="Novo")
+                
+    # 🚀 CORREÇÃO 1: Filtrar para exibir apenas cursos e projetos ativos da edição atual
+    cursos = admin_repository.listar_todos_cursos() # Ou método equivalente para cursos
+    # Aqui usamos o filtro por edição ativa e apenas projetos ativos (ativo=1)
+    projetos_filtrados = admin_repository.listar_projetos_ativos_por_edicao(id_edicao)
+    
+    return render_template('admin_form_usuario.html', cursos=cursos, projetos=projetos_filtrados, form_data=request.form, acao="Novo")
 
 @admin_bp.route('/usuario/editar/<int:id_usuario>', methods=['GET', 'POST'])
 @requer_autenticacao
 @requer_perfil('admin')
 def editar_usuario(id_usuario):
+    id_edicao = obter_configuracao_global('edicao_ativa')
+    
     with admin_repository.obter_conexao() as cursor:
         # 1. Busca os dados base do usuário primeiro
         cursor.execute("""
@@ -174,7 +180,7 @@ def editar_usuario(id_usuario):
 
     if not usuario:
         flash("Usuário não encontrado.", "erro")
-        return redirect(url_for('admin.listar_usuarios'))
+        return redirect(url_for('admin.admin_gestao_usuarios'))
 
     # 2. Resolução do identificador com base no tipo real do usuário
     identificador_valor = ""
@@ -185,7 +191,6 @@ def editar_usuario(id_usuario):
             if res:
                 identificador_valor = res['matricula']
         else:
-            # Professor ou Admin buscam o id_corporativo na tabela professores
             cursor.execute("SELECT id_corporativo FROM professores WHERE id_usuario = %s", (id_usuario,))
             res = cursor.fetchone()
             if res:
@@ -193,26 +198,47 @@ def editar_usuario(id_usuario):
 
     if request.method == 'POST':
         form_data = request.form
-        # NOTA: O 'tipo' (perfil) não é capturado do formulário pois está disabled (imutável)
         
-        admin_repository.atualizar_usuario_sistema(
-            id_usuario=id_usuario,
-            nome=form_data.get('nome', '').strip(),
-            email=form_data.get('email', '').strip(),
-            login=form_data.get('login', '').strip(),
-            identificador=form_data.get('identificador', '').strip(),
-            tipo_original=usuario['tipo'] # Repassa o tipo original que é permanente
-        )
-        flash("Usuário atualizado com sucesso!", "sucesso")
-        return redirect(url_for('admin.listar_usuarios'))
+        # 🚀 CORREÇÃO AQUI: Mudamos o nome para 'atualizar_usuario_admin' e passamos todos os dados coletados das caixas de seleção
+        try:
+            admin_repository.atualizar_usuario_admin(
+                id_usuario=id_usuario,
+                nome=form_data.get('nome', '').strip(),
+                tipo=usuario['tipo'],                           # Garante que o perfil/tipo original seja mantido (imutável)
+                cursos_ids=form_data.getlist('cursos_ids'),     # Captura as caixas marcadas de Cursos
+                projetos_ids=form_data.getlist('projetos_ids'),   # Captura as caixas de Supervisão (Professor)
+                inscricoes_ids=form_data.getlist('inscricoes_ids'), # Captura as caixas de Inscrição (Aluno)
+                id_edicao=id_edicao,
+                reset_senha=form_data.get('reset_senha', 'nao'), # Lê o checkbox do reset de senha do HTML
+                identificador=identificador_valor               # Passa o identificador blindado do banco de dados
+            )
+            flash("Usuário atualizado com sucesso!", "sucesso")
+            return redirect(url_for('admin.admin_gestao_usuarios'))
+        except Exception as e:
+            flash(f"Erro ao atualizar usuário: {e}", "erro")
+
+    # 🚀 CORREÇÃO 2: Buscar as listas necessárias gerais para preencher a tela de Editar
+    cursos = admin_repository.listar_todos_cursos()
+    projetos_filtrados = admin_repository.listar_projetos_ativos_por_edicao(id_edicao)
+
+    # 🚀 CORREÇÃO 3: Buscar o que este usuário específico já tem vinculado atualmente no banco 
+    # para marcar automaticamente como "checked" as caixas
+    lista_cursos_ids = admin_repository.obter_cursos_ids_do_usuario(id_usuario)       
+    lista_inscricoes_ids = admin_repository.obter_inscricoes_ids_do_usuario(id_usuario) 
+    lista_projetos_ids = admin_repository.obter_projetos_ids_do_usuario(id_usuario)     
 
     return render_template(
         'admin_form_usuario.html', 
         acao='Editar', 
         usuario=usuario, 
-        identificador=identificador_valor
+        identificador=identificador_valor,
+        cursos=cursos,
+        projetos=projetos_filtrados,
+        lista_cursos_ids=lista_cursos_ids,
+        lista_inscricoes_ids=lista_inscricoes_ids,
+        lista_projetos_ids=lista_projetos_ids
     )
-
+ 
 @admin_bp.route('/usuarios/toggle/<int:id>')
 @requer_autenticacao
 @requer_perfil('admin')

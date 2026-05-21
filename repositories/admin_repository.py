@@ -31,6 +31,24 @@ def obter_projetos_vinculados_admin(id_admin: int) -> list:
     with obter_conexao() as cursor:
         cursor.execute(sql, (id_admin,))
         return cursor.fetchall()
+    
+def obter_cursos_ids_do_usuario(id_usuario: int) -> list:
+    sql = "SELECT id_curso FROM usuarios_cursos WHERE id_aluno = %s"
+    with obter_conexao() as cursor:
+        cursor.execute(sql, (id_usuario,))
+        return [row['id_curso'] for row in cursor.fetchall()]
+
+def obter_inscricoes_ids_do_usuario(id_usuario: int) -> list:
+    sql = "SELECT id_projeto FROM inscricoes WHERE id_aluno = %s"
+    with obter_conexao() as cursor:
+        cursor.execute(sql, (id_usuario,))
+        return [row['id_projeto'] for row in cursor.fetchall()]
+
+def obter_projetos_ids_do_usuario(id_usuario: int) -> list:
+    sql = "SELECT id_projeto FROM supervisores_projeto WHERE id_professor = %s"
+    with obter_conexao() as cursor:
+        cursor.execute(sql, (id_usuario,))
+        return [row['id_projeto'] for row in cursor.fetchall()]
 
 def verificar_vinculos_alunos(tipo: str, target_id: int) -> list:
     if tipo == 'curso':
@@ -86,6 +104,14 @@ def alternar_status_projeto(id_projeto: int) -> str:
             cursor.execute("UPDATE projetos SET ativo = %s WHERE id = %s", (novo_status, id_projeto))
             return proj['nome_projeto']
     return None
+
+def listar_projetos_ativos_por_edicao(id_edicao: str) -> list:
+    """Retorna apenas os projetos ativos associados ao ciclo corrente."""
+    with obter_conexao() as cursor:
+        id_real_edicao = _obter_id_edicao_por_nome(cursor, id_edicao)
+        sql = "SELECT id, nome_projeto FROM projetos WHERE id_edicao = %s AND ativo = 1 ORDER BY nome_projeto ASC"
+        cursor.execute(sql, (id_real_edicao,))
+        return cursor.fetchall()
 
 def listar_usuarios_painel_paginado(busca_matricula: str, tipo_filtro: str, letra_filtro: str, pagina: int, limite: int = 50) -> tuple:
     offset = (pagina - 1) * limite
@@ -341,7 +367,7 @@ def obter_relatorio_geral_presencas(id_edicao: str) -> list:
         id_real_edicao = _obter_id_edicao_por_nome(cursor, id_edicao)
         sql = """
             SELECT u.nome, a.matricula, p.nome_projeto, e.nome_edicao,
-                   CASE WHEN i.presenca = 1 THEN 'Presente' ELSE 'Faltou' END as status
+                CASE WHEN i.presenca = 1 THEN 'Presente' ELSE 'Faltou' END as status
             FROM usuarios u
             JOIN alunos a ON u.id = a.id_usuario
             JOIN inscricoes i ON u.id = i.id_aluno
