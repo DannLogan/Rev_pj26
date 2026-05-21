@@ -43,7 +43,7 @@
                     </thead>
                     <tbody>
                         {% for p in projetos %}
-                        <tr class="border-bottom" style="{% if p.ativo != 1 %}opacity: 0.65; background-color: #fafafa;{% endif %}">
+                        <tr class="border-bottom {% if p.ativo != 1 %}opacity-50 bg-light-subtle{% endif %}"></tr>
                             <td class="p-3 text-muted font-monospace">#{{ p.id }}</td>
                             <td class="p-3 text-dark fw-bold">{{ p.nome_projeto }}</td>
                             <td class="p-3 text-center">
