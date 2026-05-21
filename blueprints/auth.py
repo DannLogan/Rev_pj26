@@ -64,6 +64,11 @@ def primeiro_acesso():
         login_form = form_data.get('login', '').strip().lower().replace(" ", "")
         email = form_data.get('email', '').strip()
         
+        if len(senha_form) < 6:
+            flash("Erro de Segurança: A senha deve conter no mínimo 6 caracteres.", "erro")
+            cursos = admin_repository.listar_todos_cursos()
+            return render_template('primeiro_acesso.html', cursos=cursos, form_data=form_data, erro_campo="senha")
+
         conflito = auth_repository.verificar_duplicidade_cadastro(matricula, login_form, email)
         if conflito:
             flash(f"Este {conflito} já consta registrado no sistema!", "erro")
