@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% import 'componentes/macros.html' as ui %}
 
-{% block title %}{{ acao }} Usuário{% endblock %}
+{% block title %}...{% endblock %}
 
 {% block content %}
 <div class="row justify-content-center animate-fade-in">
@@ -42,7 +42,7 @@
                     <label id="label-identificador" class="form-label fw-bold text-secondary">
                         {% if acao == 'Editar' and usuario.tipo == 'aluno' %}
                             Matrícula Acadêmica (RA)
-                        {% elif acao == 'Editar' %}
+                        {%   elif acao == 'Editar' %}
                             ID Corporativo
                         {% else %}
                             Matrícula Acadêmica (RA)
@@ -54,12 +54,14 @@
                            id="input-identificador" 
                            value="{{ identificador if acao == 'Editar' else form_data.get('identificador', '') }}" 
                            required 
-                           class="form-control shadow-none">
+                           {% if acao == 'Editar' %} readonly style="cursor: not-allowed;" {% endif %}
+                           class="form-control shadow-none {% if acao == 'Editar' %} bg-light text-muted {% endif %}">
+                    
                     <small id="dica-identificador" class="text-muted d-block mt-1">
                         {% if acao == 'Editar' and usuario.tipo == 'aluno' %}
-                            Os 10 dígitos numéricos do RA do aluno.
-                        {% elif acao == 'Editar' %}
-                            Identificação funcional corporativa do docente.
+                            <i class="bi bi-lock-fill"></i> O RA do aluno é permanente e não pode ser alterado.
+                        {%   elif acao == 'Editar' %}
+                            <i class="bi bi-lock-fill"></i> O ID corporativo é permanente e não pode ser alterado.
                         {% else %}
                             Para alunos, insira os 10 dígitos numéricos do RA.
                         {% endif %}
@@ -131,14 +133,17 @@
 
         function alternarFormulario() {
             const tipo = selectTipo.value;
+            const ehEditar = "{{ acao }}" === "Editar";
             
             if (tipo === 'aluno') {
                 blocoAluno.style.display = 'block';
                 blocoEquipe.style.display = 'none';
                 
                 labelIdentificador.textContent = "Matrícula Acadêmica (RA)";
-                inputIdentificador.placeholder = "Digite os 10 dígitos do RA...";
-                dicaIdentificador.textContent = "Para alunos, insira os 10 dígitos numéricos do RA.";
+                if (!ehEditar) {
+                    inputIdentificador.placeholder = "Digite os 10 dígitos do RA...";
+                    dicaIdentificador.textContent = "Para alunos, insira os 10 dígitos numéricos do RA.";
+                }
                 inputIdentificador.setAttribute('maxlength', '10');
             } 
             else if (tipo === 'professor') {
@@ -146,8 +151,10 @@
                 blocoEquipe.style.display = 'block';
                 
                 labelIdentificador.textContent = "ID Corporativo";
-                inputIdentificador.placeholder = "Digite o ID corporativo...";
-                dicaIdentificador.textContent = "Identificação funcional corporativa do docente.";
+                if (!ehEditar) {
+                    inputIdentificador.placeholder = "Digite o ID corporativo...";
+                    dicaIdentificador.textContent = "Identificação functional corporativa do docente.";
+                }
                 inputIdentificador.removeAttribute('maxlength');
             } 
             else { // admin
@@ -155,8 +162,10 @@
                 blocoEquipe.style.display = 'none';
                 
                 labelIdentificador.textContent = "ID Corporativo";
-                inputIdentificador.placeholder = "Digite o ID corporativo...";
-                dicaIdentificador.textContent = "Identificação de acesso interno do administrador.";
+                if (!ehEditar) {
+                    inputIdentificador.placeholder = "Digite o ID corporativo...";
+                    dicaIdentificador.textContent = "Identificação de acesso interno do administrador.";
+                }
                 inputIdentificador.removeAttribute('maxlength');
             }
         }
