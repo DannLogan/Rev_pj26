@@ -115,11 +115,11 @@ def admin_gestao_usuarios():
 @requer_autenticacao
 @requer_perfil('admin')
 def admin_novo_usuario():
+    # COMO AJUSTAR NA ROTA DE CADASTRO:
     if request.method == 'POST':
         nome = request.form.get('nome', '').strip()
-        matricula = request.form.get('matricula', '').strip()
         tipo = request.form.get('tipo')
-        
+        matricula = request.form.get('identificador', '').strip()
         if not re.match(r'^[A-Za-zÀ-ÿ\s]+$', nome) or not matricula.isdigit() or (tipo == 'aluno' and len(matricula) != 10):
             flash("Erro de validação nos dados informados.", "erro")
         else:
@@ -128,7 +128,6 @@ def admin_novo_usuario():
                 if conflito:
                     flash("Esta credencial/RA já existe no banco.", "erro")
                 else:
-                    # REMOVIDO INT() - Passa a string do ciclo
                     id_edicao = obter_configuracao_global('edicao_ativa')
                     admin_repository.cadastrar_usuario_manual(
                         nome, matricula, tipo, generate_password_hash(matricula), str(uuid.uuid4()),
@@ -139,7 +138,6 @@ def admin_novo_usuario():
                     return redirect(url_for('admin.admin_gestao_usuarios'))
             except Exception as e:
                 flash(f"Erro ao salvar: {e}", "erro")
-
     cursos = admin_repository.listar_todos_cursos()
     造型_projetos = admin_repository.listar_todos_projetos()
     return render_template('admin_form_usuario.html', cursos=cursos, projetos=造型_projetos, form_data=request.form, acao="Novo")
