@@ -295,22 +295,29 @@ def atualizar_edicao_ativa(nova_edicao: str) -> str:
         """, (str(id_final),))
         
         return 'sucesso'
-    
 
-def verificar_vinculos_projeto(id_projeto: int, id_edicao_ativa: int) -> bool:
-    """Retorna True se o projeto tiver alunos inscritos ou supervisores na edição atual."""
-    sql = """
-        SELECT EXISTS (
-            SELECT 1 FROM inscricoes WHERE id_projeto = %s AND id_edicao = %s
-            UNION
-            SELECT 1 FROM supervisores_projeto WHERE id_projeto = %s
-        ) AS possui_vinculo;
-    """
+def verificar_vinculos_projeto(id_projeto: int, id_edicao_ativa: str) -> bool:
+    """Retorna True se o projeto tiver qualquer aluno inscrito ou professor supervisor neste ciclo."""
     with obter_conexao() as cursor:
-        cursor.execute(sql, (id_projeto, id_edicao_ativa, id_projeto))
+        id_real_edicao = _obter_id_edicao_por_nome(cursor, id_edicao_ativa)
+        
+        sql = """
+            SELECT EXISTS (
+                -- Cenário A: Verifica se existem alunos inscritos neste projeto para a edição atual
+                SELECT 1 FROM inscricoes 
+                WHERE id_projeto = %s AND id_edicao = %s
+                
+                UNION ALL
+                
+                -- Cenário B: Verifica se existem professores orientando este projeto
+                SELECT 1 FROM supervisores_projeto 
+                WHERE id_projeto = %s
+            ) AS possui_vinculo;
+        """
+        
+        cursor.execute(sql, (id_projeto, id_real_edicao, id_projeto))
         resultado = cursor.fetchone()
-        return resultado['possui_vinculo'] if resultado else False
-
+        return resultado['possui_vinculo'] if resultado else False    
     
 def processar_importacao_csv(linhas: list, id_edicao: str) -> tuple:
     sucessos = 0
