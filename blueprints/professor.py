@@ -11,10 +11,23 @@ professor_bp = Blueprint('professor', __name__, url_prefix='/professor')
 @requer_autenticacao
 @requer_perfil('professor')
 def professor_dashboard():
-    # Coleta o ciclo como string pura (ex: '2026.2')
     id_edicao = obter_configuracao_global('edicao_ativa')
+    
+    nome_exibicao_edicao = "Não configurado"
+    
+    if id_edicao:
+        with professor_repository.obter_conexao() as cursor:
+            if str(id_edicao).strip().isdigit():
+                cursor.execute("SELECT nome_edicao FROM edicoes WHERE id = %s", (int(id_edicao),))
+            else:
+                cursor.execute("SELECT nome_edicao FROM edicoes WHERE nome_edicao = %s", (str(id_edicao).strip(),))
+                
+            resultado = cursor.fetchone()
+            if resultado:
+                nome_exibicao_edicao = resultado['nome_edicao']
+
     projetos = professor_repository.obter_projetos_supervisor(session['usuario_id'], id_edicao)
-    return render_template('dashboard_professor.html', projetos=projetos, edicao=id_edicao)
+    return render_template('dashboard_professor.html', projetos=projetos, edicao=nome_exibicao_edicao)
 
 @professor_bp.route('/projeto/<int:projeto_id>')
 @requer_autenticacao
