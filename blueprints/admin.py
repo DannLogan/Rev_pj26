@@ -52,6 +52,8 @@ def admin_gestao_cursos():
 
         admin_repository.salvar_curso(nome, curso_id=curso_id)
         flash("Curso processado com sucesso!", "sucesso")
+        
+        return redirect(url_for('admin.admin_gestao_cursos'))
 
     cursos = admin_repository.listar_todos_cursos()
     return render_template('admin_cursos.html', cursos=cursos)
