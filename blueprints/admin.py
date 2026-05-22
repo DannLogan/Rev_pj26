@@ -364,18 +364,30 @@ def admin_configuracoes():
 @requer_autenticacao
 @requer_perfil('admin')
 def exportar_presencas():
-    # REMOVIDO INT() - Passa a string do ciclo
     id_edicao = obter_configuracao_global('edicao_ativa')
     relatorio = admin_repository.obter_relatorio_geral_presencas(id_edicao)
 
+    nome_edicao_texto = "Sem_Edicao"
+    if relatorio:
+        nome_edicao_texto = str(relatorio[0]['nome_edicao']).strip().replace(" ", "_").replace(".", "_")
+
     saida = StringIO(newline='')
     escritor = csv.writer(saida, delimiter=';')
-    escritor.writerow(['Nome do Aluno', 'Matrícula', 'Projeto', 'Edição', 'Status'])
+    
+    escritor.writerow(['Nome do Aluno', 'Matrícula', 'Curso', 'Projeto', 'Edição', 'Status'])
 
     for l in relatorio:
-        escritor.writerow([l['nome'], l['matricula'], l['nome_projeto'], l['nome_edicao'], l['status']])
+        escritor.writerow([
+            l['nome'], 
+            l['matricula'], 
+            l['nome_curso'] if l.get('nome_curso') else "Não Informado", 
+            l['nome_projeto'], 
+            l['nome_edicao'], 
+            l['status']
+        ])
 
     resposta = make_response('\ufeff' + saida.getvalue())
-    resposta.headers["Content-Disposition"] = "attachment; filename=relatorio_geral.csv"
+    
+    resposta.headers["Content-Disposition"] = f"attachment; filename=relatorio_geral_{nome_edicao_texto}.csv"
     resposta.headers["Content-Type"] = "text/csv; charset=utf-8"
     return resposta

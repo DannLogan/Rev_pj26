@@ -393,14 +393,17 @@ def obter_relatorio_geral_presencas(id_edicao: str) -> list:
     with obter_conexao() as cursor:
         id_real_edicao = _obter_id_edicao_por_nome(cursor, id_edicao)
         sql = """
-            SELECT u.nome, a.matricula, p.nome_projeto, e.nome_edicao,
+            SELECT u.nome, a.matricula, c.nome_curso, p.nome_projeto, e.nome_edicao,
                 CASE WHEN i.presenca = 1 THEN 'Presente' ELSE 'Faltou' END as status
             FROM usuarios u
             JOIN alunos a ON u.id = a.id_usuario
             JOIN inscricoes i ON u.id = i.id_aluno
             JOIN projetos p ON i.id_projeto = p.id
             JOIN edicoes e ON i.id_edicao = e.id
-            WHERE i.id_edicao = %s ORDER BY u.nome ASC
+            LEFT JOIN usuarios_cursos uc ON a.id_usuario = uc.id_aluno
+            LEFT JOIN cursos c ON uc.id_curso = c.id
+            WHERE i.id_edicao = %s 
+            ORDER BY u.nome ASC
         """
         cursor.execute(sql, (id_real_edicao,))
         return cursor.fetchall()
