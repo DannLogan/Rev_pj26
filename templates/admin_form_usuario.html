@@ -53,13 +53,12 @@
                            name="identificador" 
                            id="input-identificador" 
                            value="{{ identificador if acao == 'Editar' else form_data.get('identificador', '') }}" 
-                           required 
                            {% if acao == 'Editar' %} readonly style="cursor: not-allowed;" {% endif %}
                            class="form-control shadow-none {% if acao == 'Editar' %} bg-light text-muted {% endif %}">
                     
                     <small id="dica-identificador" class="text-muted d-block mt-1">
                         {% if acao == 'Editar' and usuario.tipo == 'aluno' %}
-                            <i class="bi bi-lock-fill"></i> O RA do aluno é permanente e não pode ser alterado.
+                            <i class="bi bi-lock-fill"></i> O RA do aluno é permanente e não pode ser altered.
                         {% elif acao == 'Editar' %}
                             <i class="bi bi-lock-fill"></i> O ID corporativo é permanente e não pode ser alterado.
                         {% else %}
@@ -145,8 +144,13 @@
                 
                 labelIdentificador.textContent = "Matrícula Acadêmica (RA)";
                 if (!ehEditar) {
+                    inputIdentificador.readOnly = false;
+                    inputIdentificador.style.cursor = 'text';
+                    inputIdentificador.classList.remove('bg-light', 'text-muted');
+                    inputIdentificador.setAttribute('required', 'required');
                     inputIdentificador.placeholder = "Digite os 10 dígitos do RA...";
-                    dicaIdentificador.textContent = "Para alunos, insira os 10 dígitos numéricos do RA.";
+                    dicaIdentificador.innerHTML = "<i class='bi bi-info-circle'></i> Para alunos, insira os 10 dígitos numéricos do RA.";
+                    dicaIdentificador.className = "text-muted d-block mt-1";
                 }
                 inputIdentificador.setAttribute('maxlength', '10');
             } 
@@ -158,8 +162,14 @@
                 
                 labelIdentificador.textContent = "ID Corporativo";
                 if (!ehEditar) {
-                    inputIdentificador.placeholder = "Digite o ID corporativo...";
-                    dicaIdentificador.textContent = "Identificação funcional corporativa do docente.";
+                    // 🚀 BLOQUEIO: Configura o campo como automático protegido
+                    inputIdentificador.readOnly = true;
+                    inputIdentificador.style.cursor = 'not-allowed';
+                    inputIdentificador.classList.add('bg-light', 'text-muted');
+                    inputIdentificador.removeAttribute('required');
+                    inputIdentificador.value = "[AUTOMÁTICO]";
+                    dicaIdentificador.innerHTML = "<i class='bi bi-shield-lock-fill'></i> Bloqueado. O banco gerará a máscara sequencial <strong>00001</strong>.";
+                    dicaIdentificador.className = "text-success fw-bold d-block mt-1";
                 }
                 inputIdentificador.removeAttribute('maxlength');
             } 
@@ -171,8 +181,14 @@
                 
                 labelIdentificador.textContent = "ID Corporativo";
                 if (!ehEditar) {
-                    inputIdentificador.placeholder = "Digite o ID corporativo...";
-                    dicaIdentificador.textContent = "Identificação de acesso interno do administrador.";
+                    // 🚀 BLOQUEIO: Configura o campo como automático protegido
+                    inputIdentificador.readOnly = true;
+                    inputIdentificador.style.cursor = 'not-allowed';
+                    inputIdentificador.classList.add('bg-light', 'text-muted');
+                    inputIdentificador.removeAttribute('required');
+                    inputIdentificador.value = "[AUTOMÁTICO]";
+                    dicaIdentificador.innerHTML = "<i class='bi bi-shield-lock-fill'></i> Bloqueado. O banco gerará a máscara sequencial <strong>0001</strong>.";
+                    dicaIdentificador.className = "text-danger fw-bold d-block mt-1";
                 }
                 inputIdentificador.removeAttribute('maxlength');
             }

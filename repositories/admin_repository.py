@@ -176,25 +176,29 @@ def listar_usuarios_painel_paginado(busca_matricula: str, tipo_filtro: str, letr
         
     return usuarios, total
 
-def cadastrar_usuario_manual(nome: str, identificador: str, tipo: str, senha_hash: str, chave_unica: str, cursos: any, projetos: list, inscricoes: list, id_edicao: str) -> None:
+def cadastrar_usuario_manual(nome: str, identificador: str, tipo: str, senha_hash: str, chave_unica: str, cursos: any, projetos: list, inscricoes: list, id_edicao: str) -> str:
     with obter_conexao() as cursor:
         id_real_edicao = _obter_id_edicao_por_nome(cursor, id_edicao)
         
-        # 🚀 CORREÇÃO AUTOMÁTICA: Força o status ativo=1 na criação manual
-        cursor.execute("""
-            INSERT INTO usuarios (nome, login, senha, tipo, status_conta, chave_acesso, ativo)
-            VALUES (%s, %s, %s, %s, 'pendente', %s, 1) RETURNING id
-        """, (nome, identificador, senha_hash, tipo, chave_unica))
-        novo_id = cursor.fetchone()['id']
-
+        # =====================================================================
+        # FLUXO 1: CADASTRO DE ALUNO (Mantém a consistência original do RA)
+        # =====================================================================
         if tipo == 'aluno':
+            # Cria o hash da própria matrícula informada
+            senha_aluno_hash = generate_password_hash(identificador)
+            
+            cursor.execute("""
+                INSERT INTO usuarios (nome, login, senha, tipo, status_conta, chave_acesso, ativo)
+                VALUES (%s, %s, %s, %s, 'pendente', %s, 1) RETURNING id
+            """, (nome, identificador, senha_aluno_hash, tipo, chave_unica))
+            novo_id = cursor.fetchone()['id']
+
             qr_token = str(uuid.uuid4())
             cursor.execute("""
                 INSERT INTO alunos (id_usuario, matricula, origem_cadastro, qr_token) 
                 VALUES (%s, %s, 'manual', %s)
             """, (novo_id, identificador, qr_token))
             
-            # 🚀 CORREÇÃO CURSO ÚNICO: Se receber apenas um ID inteiro, transforma em lista para o loop rodar perfeito
             if isinstance(cursos, int):
                 cursos = [cursos]
             elif cursos is None:
@@ -207,18 +211,48 @@ def cadastrar_usuario_manual(nome: str, identificador: str, tipo: str, senha_has
             for p_id in list(set(inscricoes)):
                 if p_id:
                     cursor.execute("INSERT INTO inscricoes (id_aluno, id_projeto, id_edicao, presenca) VALUES (%s, %s, %s, 0)", (novo_id, p_id, id_real_edicao))
-        
+            
+            return identificador
+
+        # =====================================================================
+        # FLUXO 2: CADASTRO DE PROFESSOR OU ADMIN (Gerador Sequencial com Máscara)
+        # =====================================================================
         elif tipo in ['professor', 'admin']:
+            # 1. Consulta a sequência correta e aplica o preenchimento de zeros (zfill)
+            if tipo == 'professor':
+                cursor.execute("SELECT nextval('public.seq_id_professor') AS numero;")
+                num = cursor.fetchone()['numero']
+                id_corporativo_gerado = str(num).zfill(5)  # 👈 Formato '00001'
+            else:
+                cursor.execute("SELECT nextval('public.seq_id_admin') AS numero;")
+                num = cursor.fetchone()['numero']
+                id_corporativo_gerado = str(num).zfill(4)  # 👈 Formato '0001'
+
+            # 2. Gera a senha criptografada baseada no ID sequencial numérico exato
+            senha_colaborador_hash = generate_password_hash(id_corporativo_gerado)
+
+            # 3. Insere o registro na tabela principal 'usuarios' usando o ID como login
+            cursor.execute("""
+                INSERT INTO usuarios (nome, login, senha, tipo, status_conta, chave_acesso, ativo)
+                VALUES (%s, %s, %s, %s, 'pendente', %s, 1) RETURNING id
+            """, (nome, id_corporativo_gerado, senha_colaborador_hash, tipo, chave_unica))
+            novo_id = cursor.fetchone()['id']
+            
+            # 4. Vincula o usuário na tabela 'professores' injetando o id_corporativo padronizado
             cursor.execute("""
                 INSERT INTO professores (id_usuario, id_corporativo) 
                 VALUES (%s, %s)
                 ON CONFLICT (id_usuario) DO UPDATE SET id_corporativo = EXCLUDED.id_corporativo
-            """, (novo_id, identificador))
+            """, (novo_id, id_corporativo_gerado))
             
+            # 5. Salva os vínculos de projetos do professor coordenador/supervisor
             for p_id in list(set(projetos)):
                 if p_id:
                     cursor.execute("INSERT INTO supervisores_projeto (id_professor, id_projeto) VALUES (%s, %s)", (novo_id, p_id))
-                    
+            
+            # Retorna o ID gerado para que a Blueprint do Admin exiba na mensagem flash
+            return id_corporativo_gerado
+                            
 def obter_lista_inscricoes_aluno(id_aluno: int, id_edicao: str) -> list:
     with obter_conexao() as cursor:
         id_real_edicao = _obter_id_edicao_por_nome(cursor, id_edicao)

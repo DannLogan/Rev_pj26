@@ -161,25 +161,47 @@ def admin_novo_usuario():
         tipo = request.form.get('tipo')
         matricula = request.form.get('identificador', '').strip()
         
-        if not re.match(r'^[A-Za-zÀ-ÿ\s\d.-]+$', nome) or not matricula:
-            flash("Erro de validação nos dados informados.", "erro")
+        # 🚀 SEGURANÇA BACKEND: Se o front enviar "[AUTOMÁTICO]" ou vier de Professor/Admin, limpa o campo
+        if tipo != 'aluno':
+            matricula = ""
+
+        # Validações estritas de entrada baseadas no perfil
+        if not re.match(r'^[A-Za-zÀ-ÿ\s\d.-]+$', nome):
+            flash("Erro de validação: O nome contém caracteres inválidos.", "erro")
         elif tipo == 'aluno' and (not matricula.isdigit() or len(matricula) != 10):
             flash("Para alunos, a matrícula deve conter exatamente 10 dígitos numéricos.", "erro")
         else:
             try:
-                with admin_repository.obter_conexao() as cursor:
-                    cursor.execute("SELECT id FROM usuarios WHERE login = %s", (matricula.lower(),))
-                    existe_usuario = cursor.fetchone()
+                # Se for aluno, precisamos verificar duplicidade antes de salvar
+                existe_usuario = False
+                if tipo == 'aluno':
+                    with admin_repository.obter_conexao() as cursor:
+                        cursor.execute("SELECT id FROM usuarios WHERE login = %s", (matricula.lower(),))
+                        existe_usuario = cursor.fetchone()
 
                 if existe_usuario:
                     flash("Esta credencial/Login já existe no sistema.", "erro")
                 else:
-                    admin_repository.cadastrar_usuario_manual(
-                        nome, matricula, tipo, generate_password_hash(matricula), str(uuid.uuid4()),
+                    # 🚀 O REPOSITÓRIO AGORA RETORNA O ID GERADO PELO BANCO (Ex: 00001 ou 0001)
+                    # Como a senha inicial será idêntica ao login, geramos o hash dinamicamente após o retorno no repositório,
+                    # ou passamos uma senha provisória que o repositório ajustará.
+                    # Para manter o padrão, capturamos o login final gerado:
+                    login_gerado = admin_repository.cadastrar_usuario_manual(
+                        nome, matricula, tipo, "", str(uuid.uuid4()),
                         request.form.getlist('cursos_ids'), request.form.getlist('projetos_ids'),
                         request.form.getlist('inscricoes_ids'), id_edicao
                     )
-                    flash(f"Usuário {nome} cadastrado com sucesso!", "sucesso")
+                    
+                    # Formata a mensagem amigável para exibição em tela
+                    perfil_nome = "Administrador" if tipo == 'admin' else ("Professor" if tipo == 'professor' else "Aluno")
+                    
+                    # 🚀 ALERTA DETALHADO: Mostra o ID que o banco acabou de criar com os zeros à esquerda!
+                    flash(
+                        f"🎉 {perfil_nome} cadastrado com sucesso! "
+                        f"O login de acesso gerado foi: <strong>{login_gerado}</strong>. "
+                        f"A senha inicial é idêntica a este identificador.", 
+                        "sucesso"
+                    )
                     return redirect(url_for('admin.admin_gestao_usuarios'))
             except Exception as e:
                 flash(f"Erro ao salvar: {e}", "erro")
@@ -187,7 +209,7 @@ def admin_novo_usuario():
     cursos = admin_repository.listar_todos_cursos()
     projetos_filtrados = admin_repository.listar_projetos_ativos_por_edicao(id_edicao)
     
-    return render_template('admin_form_usuario.html', cursos=cursos, projetos=projetos_filtrados, form_data=request.form, acao="Novo")
+    return render_template('admin_form_usuario.html', cursos=cursos, projects=projetos_filtrados, form_data=request.form, acao="Novo")
 
 @admin_bp.route('/usuario/editar/<int:id_usuario>', methods=['GET', 'POST'])
 @requer_autenticacao

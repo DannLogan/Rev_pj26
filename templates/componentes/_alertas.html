@@ -4,7 +4,9 @@
             {% for categoria, mensagem in mensagens %}
                 <div class="alert alert-{% if categoria == 'erro' %}danger{% elif categoria == 'sucesso' %}success{% else %}info{% endif %} alert-dismissible fade show shadow animate-fade-in" role="alert">
                     <i class="bi {% if categoria == 'erro' %}bi-exclamation-triangle-fill{% elif categoria == 'sucesso' %}bi-check-circle-fill{% else %}bi-info-circle-fill{% endif %} me-2"></i>
-                    {{ mensagem }}
+                    
+                    {{ mensagem | safe }}
+                    
                     <button type="button" class="btn-close shadow-none" aria-label="Close"></button>
                 </div>
             {% endfor %}
