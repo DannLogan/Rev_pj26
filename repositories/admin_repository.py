@@ -21,6 +21,25 @@ def _obter_id_edicao_por_nome(cursor, nome_edicao: str) -> int:
     res = cursor.fetchone()
     return res['id'] if res else None
 
+def obter_nome_edicao_ativa() -> str:
+    """Busca o nome textual (ex: '2026.1') da edição que está ativa no momento."""
+    with obter_conexao() as cursor:
+        cursor.execute("SELECT valor FROM configuracoes WHERE chave = 'edicao_ativa'")
+        res_config = cursor.fetchone()
+        if not res_config:
+            return "Sem_Edicao"
+            
+        valor_bruto = res_config['valor'].strip()
+
+        if valor_bruto.isdigit():
+            cursor.execute("SELECT nome_edicao FROM edicoes WHERE id = %s", (int(valor_bruto),))
+        else:
+            cursor.execute("SELECT nome_edicao FROM edicoes WHERE nome_edicao = %s", (valor_bruto,))
+            
+        res_edicao = cursor.fetchone()
+        
+        return res_edicao['nome_edicao'].strip() if res_edicao else valor_bruto
+
 def obter_projetos_vinculados_admin(id_admin: int) -> list:
     sql = """
         SELECT p.id, p.nome_projeto 

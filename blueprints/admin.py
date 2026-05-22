@@ -367,9 +367,8 @@ def exportar_presencas():
     id_edicao = obter_configuracao_global('edicao_ativa')
     relatorio = admin_repository.obter_relatorio_geral_presencas(id_edicao)
 
-    nome_edicao_texto = "Sem_Edicao"
-    if relatorio:
-        nome_edicao_texto = str(relatorio[0]['nome_edicao']).strip().replace(" ", "_").replace(".", "_")
+    nome_edicao_real = admin_repository.obter_nome_edicao_ativa()
+    nome_edicao_texto = nome_edicao_real.replace(" ", "_").replace(".", "_")
 
     saida = StringIO(newline='')
     escritor = csv.writer(saida, delimiter=';')
