@@ -183,36 +183,43 @@ def recuperar_senha():
 @requer_autenticacao
 def editar_perfil():
     usuario = auth_repository.buscar_usuario_por_id(session['usuario_id'])
-
-    if request.method == 'POST':
-        form_data = request.form
-        login_form = form_data.get('matricula', '').strip().lower().replace(" ", "")
-        id_curso = form_data.get('curso') # 🚀 ALTERADO: Campo único para curso
-
-        if usuario['status_conta'] == 'pendente' and login_form != usuario['login']:
-            if auth_repository.buscar_usuario_por_identificador(login_form):
-                flash("Este login único já está em uso.", "erro")
-                return redirect(request.form.get('voltar_url') or url_for('auth.index'))
-            login_final = login_form
-        else:
-            login_final = usuario['login']
-
-        # 🚀 ALTERADO: Passando int(id_curso) se houver
-        curso_final = int(id_curso) if id_curso else None
-        auth_repository.atualizar_perfil_usuario(
-            session['usuario_id'], form_data.get('nome').strip(), form_data.get('email').strip(),
-            login_final, form_data.get('nova_senha') or None, curso_final
-        )
-        
-        session['nome'] = form_data.get('nome').strip()
-        flash("Perfil updated!", "sucesso")
-        return redirect(form_data.get('voltar_url') or url_for('auth.index'))
-
+    
     cursos = admin_repository.listar_todos_cursos()
-    cursos_usuario = auth_repository.buscar_cursos_usuario(session['usuario_id']) if session.get('tipo') == 'aluno' else []
+    cursos_usuario = auth_repository.buscar_cursos_usuario(session['usuario_id']) if usuario['tipo'] == 'aluno' else []
     curso_usuario_id = cursos_usuario[0] if cursos_usuario else None
     
     referer = request.referrer or ''
     voltar_url = url_for('professor.professor_dashboard') if '/professor' in referer else url_for('admin.admin_painel') if '/admin' in referer else url_for('aluno.aluno_dashboard')
 
-    return render_template('editar_perfil.html', usuario=usuario, cursos=cursos, curso_usuario_id=curso_usuario_id, voltar_url=voltar_url)
+    if request.method == 'POST':
+        form_data = request.form
+        login_form = form_data.get('matricula', '').strip().lower().replace(" ", "")
+        id_curso = form_data.get('curso') 
+        
+        voltar_url_post = form_data.get('voltar_url') or voltar_url
+
+        if usuario['status_conta'] == 'pendente' and login_form != usuario['login']:
+            if auth_repository.buscar_usuario_por_identificador(login_form):
+                flash("Este login único já está em uso.", "erro")
+                return render_template('editar_perfil.html', usuario=usuario, cursos=cursos, curso_usuario_id=curso_usuario_id, voltar_url=voltar_url_post, form_data=form_data)
+            login_final = login_form
+        else:
+            login_final = usuario['login']
+
+        curso_final = int(id_curso) if (usuario['tipo'] == 'aluno' and id_curso and str(id_curso).isdigit()) else None
+        
+        try:
+            auth_repository.atualizar_perfil_usuario(
+                session['usuario_id'], form_data.get('nome').strip(), form_data.get('email').strip(),
+                login_final, form_data.get('nova_senha') or None, curso_final
+            )
+            
+            session['nome'] = form_data.get('nome').strip()
+            flash("Perfil atualizado com sucesso!", "sucesso")
+            return redirect(voltar_url_post)
+            
+        except Exception as e:
+            flash(f"Erro ao salvar alterações: {e}", "erro")
+            return render_template('editar_perfil.html', usuario=usuario, cursos=cursos, curso_usuario_id=curso_usuario_id, voltar_url=voltar_url_post, form_data=form_data)
+
+    return render_template('editar_perfil.html', usuario=usuario, cursos=cursos, curso_usuario_id=curso_usuario_id, voltar_url=voltar_url, form_data={})

@@ -16,7 +16,7 @@
         </div>
 
         {% call ui.card() %}
-            <form action="{{ url_for('auth.editar_perfil') }}" method="POST">
+            <form action="{{ url_for('auth.editar_perfil') }}" method="POST" id="form-editar-perfil">
                 <input type="hidden" name="voltar_url" value="{{ voltar_url }}">
                 
                 <div class="mb-3">
@@ -44,11 +44,43 @@
                 
                 {{ ui.campo_input(nome="nome", label="Nome Completo", valor=usuario.nome) }}
                 {{ ui.campo_input(nome="email", label="E-mail Institucional", tipo="email", valor=usuario.email_institucional or '') }}
+                
+                {% if usuario.tipo == 'aluno' %}
+                <div class="mb-3">
+                    <label class="form-label fw-bold text-secondary">Curso Matriculado</label>
+                    <select name="curso" required class="form-select border-primary shadow-none">
+                        <option value="">-- Selecione o seu curso --</option>
+                        {% for c in cursos %}
+                            <option value="{{ c.id }}" {% if c.id == curso_usuario_id or c.id|string == form_data.get('curso') %}selected{% endif %}>
+                                {{ c.nome_curso }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                    <small class="text-primary d-block mt-1"><i class="bi bi-info-circle"></i> Caso tenha selecionado o curso errado no primeiro acesso, corrija-o aqui.</small>
+                </div>
+                {% endif %}
+
                 {{ ui.campo_input(nome="nova_senha", label="Nova Senha (Opcional)", tipo="password", placeholder="Deixe em branco para manter", requerido=False) }}
                 
-                <button type="submit" class="btn btn-success w-100 py-2 fw-bold">Salvar Alterações</button>
+                <button type="submit" class="btn btn-success w-100 py-2 fw-bold mt-3">Salvar Alterações</button>
             </form>
         {% endcall %}
     </div>
 </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('form-editar-perfil');
+        if (form) {
+            form.addEventListener('submit', function(e) {
+                const campoSenha = document.querySelector('input[name="nova_senha"]');
+                if (campoSenha && campoSenha.value.trim() !== "" && campoSenha.value.trim().length < 6) {
+                    e.preventDefault();
+                    alert('Segurança: A sua nova senha precisa ter pelo menos 6 caracteres!');
+                    campoSenha.focus();
+                }
+            });
+        }
+    });
+</script>
 {% endblock %}
