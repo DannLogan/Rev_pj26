@@ -156,13 +156,14 @@ def listar_usuarios_painel_paginado(busca_matricula: str, tipo_filtro: str, letr
         
     return usuarios, total
 
-def cadastrar_usuario_manual(nome: str, identificador: str, tipo: str, senha_hash: str, chave_unica: str, cursos: list, projetos: list, inscricoes: list, id_edicao: str) -> None:
+def cadastrar_usuario_manual(nome: str, identificador: str, tipo: str, senha_hash: str, chave_unica: str, cursos: any, projetos: list, inscricoes: list, id_edicao: str) -> None:
     with obter_conexao() as cursor:
         id_real_edicao = _obter_id_edicao_por_nome(cursor, id_edicao)
         
+        # 🚀 CORREÇÃO AUTOMÁTICA: Força o status ativo=1 na criação manual
         cursor.execute("""
-            INSERT INTO usuarios (nome, login, senha, tipo, status_conta, chave_acesso)
-            VALUES (%s, %s, %s, %s, 'pendente', %s) RETURNING id
+            INSERT INTO usuarios (nome, login, senha, tipo, status_conta, chave_acesso, ativo)
+            VALUES (%s, %s, %s, %s, 'pendente', %s, 1) RETURNING id
         """, (nome, identificador, senha_hash, tipo, chave_unica))
         novo_id = cursor.fetchone()['id']
 
@@ -173,10 +174,19 @@ def cadastrar_usuario_manual(nome: str, identificador: str, tipo: str, senha_has
                 VALUES (%s, %s, 'manual', %s)
             """, (novo_id, identificador, qr_token))
             
+            # 🚀 CORREÇÃO CURSO ÚNICO: Se receber apenas um ID inteiro, transforma em lista para o loop rodar perfeito
+            if isinstance(cursos, int):
+                cursos = [cursos]
+            elif cursos is None:
+                cursos = []
+
             for c_id in list(set(cursos)):
-                cursor.execute("INSERT INTO usuarios_cursos (id_aluno, id_curso) VALUES (%s, %s)", (novo_id, c_id))
+                if c_id:
+                    cursor.execute("INSERT INTO usuarios_cursos (id_aluno, id_curso) VALUES (%s, %s)", (novo_id, int(c_id)))
+                    
             for p_id in list(set(inscricoes)):
-                cursor.execute("INSERT INTO inscricoes (id_aluno, id_projeto, id_edicao, presenca) VALUES (%s, %s, %s, 0)", (novo_id, p_id, id_real_edicao))
+                if p_id:
+                    cursor.execute("INSERT INTO inscricoes (id_aluno, id_projeto, id_edicao, presenca) VALUES (%s, %s, %s, 0)", (novo_id, p_id, id_real_edicao))
         
         elif tipo in ['professor', 'admin']:
             cursor.execute("""
@@ -186,8 +196,9 @@ def cadastrar_usuario_manual(nome: str, identificador: str, tipo: str, senha_has
             """, (novo_id, identificador))
             
             for p_id in list(set(projetos)):
-                cursor.execute("INSERT INTO supervisores_projeto (id_professor, id_projeto) VALUES (%s, %s)", (novo_id, p_id))
-
+                if p_id:
+                    cursor.execute("INSERT INTO supervisores_projeto (id_professor, id_projeto) VALUES (%s, %s)", (novo_id, p_id))
+                    
 def obter_lista_inscricoes_aluno(id_aluno: int, id_edicao: str) -> list:
     with obter_conexao() as cursor:
         id_real_edicao = _obter_id_edicao_por_nome(cursor, id_edicao)
@@ -195,7 +206,7 @@ def obter_lista_inscricoes_aluno(id_aluno: int, id_edicao: str) -> list:
         cursor.execute(sql, (id_aluno, id_real_edicao))
         return [row['id_projeto'] for row in cursor.fetchall()]
 
-def atualizar_usuario_admin(id_usuario: int, nome: str, tipo: str, cursos_ids: list, projetos_ids: list, inscricoes_ids: list, id_edicao: str, reset_senha: str, identificador: str) -> None:
+def atualizar_usuario_admin(id_usuario: int, nome: str, tipo: str, cursos_ids: any, projetos_ids: list, inscricoes_ids: list, id_edicao: str, reset_senha: str, identificador: str) -> None:
     with obter_conexao() as cursor:
         id_real_edicao = _obter_id_edicao_por_nome(cursor, id_edicao)
         
@@ -210,9 +221,15 @@ def atualizar_usuario_admin(id_usuario: int, nome: str, tipo: str, cursos_ids: l
                 ON CONFLICT (id_usuario) DO UPDATE SET matricula = EXCLUDED.matricula
             """, (id_usuario, identificador, str(uuid.uuid4())))
 
-            if cursos_ids:
-                for c_id in cursos_ids:
-                    cursor.execute("INSERT INTO usuarios_cursos (id_aluno, id_curso) VALUES (%s, %s)", (id_usuario, c_id))
+            # 🚀 CORREÇÃO CURSO ÚNICO: Normaliza o inteiro para lista, blindando contra o erro 'int' object is not iterable
+            if isinstance(cursos_ids, int):
+                cursos_ids = [cursos_ids]
+            elif cursos_ids is None:
+                cursos_ids = []
+
+            for c_id in cursos_ids:
+                if c_id:
+                    cursor.execute("INSERT INTO usuarios_cursos (id_aluno, id_curso) VALUES (%s, %s)", (id_usuario, int(c_id)))
             
             cursor.execute("SELECT id_projeto, presenca FROM inscricoes WHERE id_aluno = %s AND id_edicao = %s", (id_usuario, id_real_edicao))
             atuais = cursor.fetchall()
@@ -237,11 +254,12 @@ def atualizar_usuario_admin(id_usuario: int, nome: str, tipo: str, cursos_ids: l
             
             if projetos_ids:
                 for p_id in projetos_ids:
-                    cursor.execute("INSERT INTO supervisores_projeto (id_professor, id_projeto) VALUES (%s, %s)", (id_usuario, p_id))
+                    if p_id:
+                        cursor.execute("INSERT INTO supervisores_projeto (id_professor, id_projeto) VALUES (%s, %s)", (id_usuario, p_id))
                 
         if reset_senha == 'sim':
             cursor.execute("UPDATE usuarios SET senha = %s, status_conta = 'pendente' WHERE id = %s", (generate_password_hash(identificador), id_usuario))
-            
+                        
 def alternar_status_usuario(id_usuario: int) -> dict:
     with obter_conexao() as cursor:
         cursor.execute("SELECT ativo, nome FROM usuarios WHERE id = %s", (id_usuario,))
