@@ -101,14 +101,13 @@ def concluir_cadastro():
     usuario = auth_repository.buscar_usuario_por_id(session['usuario_id'])
     cursos = admin_repository.listar_todos_cursos()
     
-    # Busca o ID do curso atual do usuário de forma segura
     cursos_usuario = auth_repository.buscar_cursos_usuario(session['usuario_id'])
     curso_atual_id = str(cursos_usuario[0]) if cursos_usuario else ""
 
     if request.method == 'POST':
         form_data = request.form
         senha_form = form_data.get('senha', '')
-        id_curso = form_data.get('curso') # 🚀 ALTERADO: Captura o curso único
+        id_curso = form_data.get('curso')
         
         if len(senha_form) < 6:
             flash("Erro de Segurança: A senha deve conter no mínimo 6 caracteres.", "erro")
@@ -131,15 +130,16 @@ def concluir_cadastro():
         else:
             login_final = usuario['login']
 
-        if not id_curso:
+        if usuario['tipo'] == 'aluno' and not id_curso:
             flash("Erro de Validação: Você deve selecionar um curso.", "erro")
             return render_template('concluir_cadastro.html', cursos=cursos, usuario=usuario, form_data=form_data, curso_atual_id=curso_atual_id)
 
-        # 🚀 RECOMENDAÇÃO: Ajustar também em auth_repository.salvar_conclusao_cadastro para receber o int(id_curso) em vez de lista
+        curso_final = int(id_curso) if (usuario['tipo'] == 'aluno' and id_curso) else None
+
         auth_repository.salvar_conclusao_cadastro(
             session['usuario_id'], form_data.get('nome', '').strip(), form_data.get('email', '').strip(),
             login_final, senha_form, form_data.get('pergunta'), 
-            form_data.get('resposta', '').strip().lower(), int(id_curso)
+            form_data.get('resposta', '').strip().lower(), curso_final
         )
         
         session['status_conta'] = 'ativa'
