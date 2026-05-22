@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% import 'componentes/macros.html' as ui %}
 
-{% block title %}...{% endblock %}
+{% block title %}{{ acao }} Usuário{% endblock %}
 
 {% block content %}
 <div class="row justify-content-center animate-fade-in">
@@ -28,7 +28,7 @@
                             <option value="professor" {% if usuario.tipo == 'professor' %}selected{% endif %}>Professor / Orientador</option>
                             <option value="admin" {% if usuario.tipo == 'admin' %}selected{% endif %}>Administrador Geral</option>
                         </select>
-                        <small class="text-muted d-block mt-1"><i class="bi bi-info-circle"></i> O perfil deste usuário é permanente.</small>
+                        <small class="text-muted d-block mt-1"><i class="bi bi-info-circle"></i> O perfil deste usuário é permanentemente fixo.</small>
                     {% else %}
                         <select name="tipo" id="select-tipo" required class="form-select shadow-none">
                             <option value="aluno" {% if form_data.get('tipo') == 'aluno' %}selected{% endif %}>Aluno</option>
@@ -42,7 +42,7 @@
                     <label id="label-identificador" class="form-label fw-bold text-secondary">
                         {% if acao == 'Editar' and usuario.tipo == 'aluno' %}
                             Matrícula Acadêmica (RA)
-                        {%   elif acao == 'Editar' %}
+                        {% elif acao == 'Editar' %}
                             ID Corporativo
                         {% else %}
                             Matrícula Acadêmica (RA)
@@ -60,7 +60,7 @@
                     <small id="dica-identificador" class="text-muted d-block mt-1">
                         {% if acao == 'Editar' and usuario.tipo == 'aluno' %}
                             <i class="bi bi-lock-fill"></i> O RA do aluno é permanente e não pode ser alterado.
-                        {%   elif acao == 'Editar' %}
+                        {% elif acao == 'Editar' %}
                             <i class="bi bi-lock-fill"></i> O ID corporativo é permanente e não pode ser alterado.
                         {% else %}
                             Para alunos, insira os 10 dígitos numéricos do RA.
@@ -70,15 +70,15 @@
 
                 <div id="bloco-aluno" class="p-3 border rounded bg-light mb-4 shadow-sm" style="display: none;">
                     <h6 class="fw-bold text-dark border-bottom pb-2 mb-2"><i class="bi bi-journal-bookmark"></i> Curso Vinculado</h6>
-                    <div class="row row-cols-1 row-cols-sm-2 g-2 mb-3">
-                        {% for c in cursos %}
-                        <div class="col">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="cursos_ids" value="{{ c.id }}" id="chk_c_{{ c.id }}" {% if lista_cursos_ids and c.id in lista_cursos_ids %}checked{% endif %}>
-                                <label class="form-check-label text-dark small" for="chk_c_{{ c.id }}">{{ c.nome_curso }}</label>
-                            </div>
-                        </div>
-                        {% endfor %}
+                    <div class="mb-3">
+                        <select name="curso_id" id="select-curso" class="form-select shadow-none">
+                            <option value="">-- Selecione o curso --</option>
+                            {% for c in cursos %}
+                                <option value="{{ c.id }}" {% if (lista_cursos_ids and c.id in lista_cursos_ids) or c.id|string == form_data.get('curso_id') %}selected{% endif %}>
+                                    {{ c.nome_curso }}
+                                </option>
+                            {% endfor %}
+                        </select>
                     </div>
 
                     <h6 class="fw-bold text-dark border-bottom pb-2 mb-2"><i class="bi bi-award"></i> Inscrição em Projetos</h6>
@@ -127,9 +127,11 @@
         const selectTipo = document.getElementById('select-tipo');
         const blocoAluno = document.getElementById('bloco-aluno');
         const blocoEquipe = document.getElementById('bloco-equipe');
+        const selectCurso = document.getElementById('select-curso');
         const inputIdentificador = document.getElementById('input-identificador');
         const labelIdentificador = document.getElementById('label-identificador');
         const dicaIdentificador = document.getElementById('dica-identificador');
+        const formUsuario = document.getElementById('form-usuario');
 
         function alternarFormulario() {
             const tipo = selectTipo.value;
@@ -138,6 +140,8 @@
             if (tipo === 'aluno') {
                 blocoAluno.style.display = 'block';
                 blocoEquipe.style.display = 'none';
+                
+                if (selectCurso) selectCurso.setAttribute('required', 'required');
                 
                 labelIdentificador.textContent = "Matrícula Acadêmica (RA)";
                 if (!ehEditar) {
@@ -150,16 +154,20 @@
                 blocoAluno.style.display = 'none';
                 blocoEquipe.style.display = 'block';
                 
+                if (selectCurso) selectCurso.removeAttribute('required');
+                
                 labelIdentificador.textContent = "ID Corporativo";
                 if (!ehEditar) {
                     inputIdentificador.placeholder = "Digite o ID corporativo...";
-                    dicaIdentificador.textContent = "Identificação functional corporativa do docente.";
+                    dicaIdentificador.textContent = "Identificação funcional corporativa do docente.";
                 }
                 inputIdentificador.removeAttribute('maxlength');
             } 
             else { // admin
                 blocoAluno.style.display = 'none';
                 blocoEquipe.style.display = 'none';
+                
+                if (selectCurso) selectCurso.removeAttribute('required');
                 
                 labelIdentificador.textContent = "ID Corporativo";
                 if (!ehEditar) {
@@ -173,6 +181,26 @@
         if (selectTipo) {
             selectTipo.addEventListener('change', alternarFormulario);
             alternarFormulario();
+        }
+
+        // Trava de validação física para matrícula numérica se o tipo for aluno
+        if (inputIdentificador) {
+            inputIdentificador.addEventListener('input', function() {
+                if (selectTipo.value === 'aluno') {
+                    this.value = this.value.replace(/\D/g, '');
+                }
+            });
+        }
+
+        // Validação no submit do formulário
+        if (formUsuario) {
+            formUsuario.addEventListener('submit', function(e) {
+                if (selectTipo.value === 'aluno' && inputIdentificador.value.trim().length !== 10) {
+                    e.preventDefault();
+                    alert('Erro de Validação: A Matrícula / RA precisa conter exatamente 10 dígitos numéricos!');
+                    inputIdentificador.focus();
+                }
+            });
         }
     });
 </script>
