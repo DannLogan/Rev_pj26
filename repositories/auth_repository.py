@@ -74,7 +74,7 @@ def cadastrar_primeiro_acesso_aluno(matricula: str, login: str, nome: str, email
             DO UPDATE SET id_curso = EXCLUDED.id_curso
         """, (novo_id, id_curso))
             
-def salvar_conclusao_cadastro(usuario_id: int, nome: str, email: str, login: str, senha_bruta: str, pergunta: str, resposta_bruta: str, cursos_ids: list) -> None:
+def salvar_conclusao_cadastro(usuario_id: int, nome: str, email: str, login: str, senha_bruta: str, pergunta: str, resposta_bruta: str, cursos_ids: any) -> None:
     with obter_conexao() as cursor:
         senha_hash = generate_password_hash(senha_bruta)
         resposta_hash = generate_password_hash(resposta_bruta)
@@ -97,9 +97,18 @@ def salvar_conclusao_cadastro(usuario_id: int, nome: str, email: str, login: str
                 cursor.execute("UPDATE alunos SET qr_token = %s WHERE id_usuario = %s", (str(uuid.uuid4()), usuario_id))
 
             cursor.execute("DELETE FROM usuarios_cursos WHERE id_aluno = %s", (usuario_id,))
+            
+            # 🚀 BLINDAGEM DO TIPO: Se vier apenas um ID inteiro, transforma em lista
+            if isinstance(cursos_ids, int):
+                cursos_ids = [cursos_ids]
+            elif cursos_ids is None:
+                cursos_ids = []
+                
+            # Remove duplicatas com segurança e roda o laço sem erros
             for c_id in list(set(cursos_ids)):
-                cursor.execute("INSERT INTO usuarios_cursos (id_aluno, id_curso) VALUES (%s, %s)", (usuario_id, c_id))
-
+                if c_id:
+                    cursor.execute("INSERT INTO usuarios_cursos (id_aluno, id_curso) VALUES (%s, %s)", (usuario_id, int(c_id)))
+                    
 def atualizar_perfil_usuario(usuario_id: int, nome: str, email: str, login: str = None, nova_senha_bruta: str = None, cursos_ids: list = None) -> None:
     with obter_conexao() as cursor:
         campos = ["nome = %s", "email_institucional = %s"]
