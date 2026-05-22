@@ -151,6 +151,7 @@ def admin_gestao_usuarios():
         page_obj=page_obj
     )
 
+
 @admin_bp.route('/usuarios/novo', methods=['GET', 'POST'])
 @requer_autenticacao
 @requer_perfil('admin')
@@ -265,6 +266,16 @@ def editar_usuario(id_usuario):
         lista_projetos_ids=lista_projetos_ids,
         form_data=form_data # 🚀 Enviando o dicionário limpo para o Jinja2 ler sem dar erro no GET
     )
+    
+@admin_bp.route('/usuarios/toggle/<int:id>')
+@requer_autenticacao
+@requer_perfil('admin')
+def admin_toggle_usuario(id):
+    res = admin_repository.alternar_status_usuario(id)
+    if res:
+        status_txt = "Reativado" if res['novo_estado'] == 1 else "Ocultado"
+        flash(f"Usuário {res['nome']} modificado para: {status_txt}.", "sucesso")
+    return redirect(url_for('admin.admin_gestao_usuarios'))
 
 @admin_bp.route('/importar', methods=['GET', 'POST'])
 @requer_autenticacao
