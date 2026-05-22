@@ -253,11 +253,14 @@ def alternar_status_usuario(id_usuario: int) -> dict:
     return None
 
 def preparar_novo_ciclo_limpeza(cursor):
-    """Apaga os vínculos temporários (supervisores) e zera tokens de QR Code."""
-    # Como já estamos dentro de um bloco 'with obter_conexao()', 
-    # usamos o mesmo cursor que foi passado por parâmetro!
+    """Apaga os vínculos temporários (supervisores) e garante que todos os alunos tenham um QR Code."""
     cursor.execute("DELETE FROM supervisores_projeto;")
-    cursor.execute("UPDATE alunos SET qr_token = NULL;")
+
+    cursor.execute("""
+        UPDATE alunos 
+        SET qr_token = gen_random_uuid()::text 
+        WHERE qr_token IS NULL;
+    """)
 
 def atualizar_edicao_ativa(nova_edicao: str) -> str:
     nova_edicao = str(nova_edicao).strip()
