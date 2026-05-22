@@ -49,7 +49,8 @@ def admin_gestao_cursos():
     if request.method == 'POST':
         nome = request.form.get('nome_curso', '').strip()
         curso_id = request.form.get('curso_id') or None
-        admin_repository.salvar_curso(nome, Size=curso_id)
+
+        admin_repository.salvar_curso(nome, curso_id=curso_id)
         flash("Curso processado com sucesso!", "sucesso")
 
     cursos = admin_repository.listar_todos_cursos()
