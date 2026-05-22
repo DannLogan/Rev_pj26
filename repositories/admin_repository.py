@@ -142,7 +142,8 @@ def listar_usuarios_painel_paginado(busca_matricula: str, tipo_filtro: str, letr
     if tipo_filtro:
         condicoes.append("u.tipo = %s")
         parametros.append(tipo_filtro)
-    if tipo_filtro == 'aluno' and letra_filtro:
+        
+    if letra_filtro:
         condicoes.append("u.nome ILIKE %s")
         parametros.append(f"{letra_filtro}%")
         

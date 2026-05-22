@@ -112,7 +112,7 @@ def admin_toggle_projeto(id):
 @requer_autenticacao
 @requer_perfil('admin')
 def admin_gestao_usuarios():
-    tipo_filtro = request.args.get('tipo', 'aluno')
+    tipo_filtro = request.args.get('tipo', '')
     letra_filtro = request.args.get('letra', '')
     busca_matricula = request.args.get('busca_matricula', '').strip()
     
@@ -149,7 +149,7 @@ def admin_gestao_usuarios():
         total_resultados=total_resultados,
         page_obj=page_obj
     )
-
+    
 @admin_bp.route('/usuarios/novo', methods=['GET', 'POST'])
 @requer_autenticacao
 @requer_perfil('admin')
