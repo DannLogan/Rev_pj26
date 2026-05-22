@@ -160,13 +160,19 @@ def admin_novo_usuario():
         nome = request.form.get('nome', '').strip()
         tipo = request.form.get('tipo')
         matricula = request.form.get('identificador', '').strip()
-        if not re.match(r'^[A-Za-zÀ-ÿ\s]+$', nome) or not matricula.isdigit() or (tipo == 'aluno' and len(matricula) != 10):
+        
+        if not re.match(r'^[A-Za-zÀ-ÿ\s\d.-]+$', nome) or not matricula:
             flash("Erro de validação nos dados informados.", "erro")
+        elif tipo == 'aluno' and (not matricula.isdigit() or len(matricula) != 10):
+            flash("Para alunos, a matrícula deve conter exatamente 10 dígitos numéricos.", "erro")
         else:
             try:
-                conflito = auth_repository.verificar_duplicidade_cadastro(matricula, matricula, "")
-                if conflito:
-                    flash("Esta credencial/RA já existe no banco.", "erro")
+                with admin_repository.obter_conexao() as cursor:
+                    cursor.execute("SELECT id FROM usuarios WHERE login = %s", (matricula.lower(),))
+                    existe_usuario = cursor.fetchone()
+
+                if existe_usuario:
+                    flash("Esta credencial/Login já existe no sistema.", "erro")
                 else:
                     admin_repository.cadastrar_usuario_manual(
                         nome, matricula, tipo, generate_password_hash(matricula), str(uuid.uuid4()),
