@@ -45,11 +45,19 @@ async function baixarRelatorio() {
     try {
         const resposta = await fetch("{{ url_for('admin.exportar_presencas') }}");
         if (!resposta.ok) throw new Error("Erro de resposta.");
+        
+        const contentDisposition = resposta.headers.get('content-disposition');
+        let nomeArquivo = "relatorio_geral.csv"; // Nome padrão caso falhe
+        
+        if (contentDisposition && contentDisposition.includes('filename=')) {
+            nomeArquivo = contentDisposition.split('filename=')[1].split(';')[0].replace(/['"]/g, '');
+        }
+
         const blob = await resposta.blob();
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = "relatorio_geral_presencas.csv";
+        a.download = nomeArquivo; 
         document.body.appendChild(a);
         a.click();
         a.remove();
