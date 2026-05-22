@@ -144,6 +144,9 @@
                 
                 labelIdentificador.textContent = "Matrícula Acadêmica (RA)";
                 if (!ehEditar) {
+                    if (inputIdentificador.value === "[AUTOMÁTICO]") {
+                        inputIdentificador.value = "";
+                    }
                     inputIdentificador.readOnly = false;
                     inputIdentificador.style.cursor = 'text';
                     inputIdentificador.classList.remove('bg-light', 'text-muted');
