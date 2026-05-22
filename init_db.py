@@ -25,88 +25,90 @@ def inicializar_novo_banco_normalizado():
         )
         cursor = conn.cursor()
 
-        # 1. CRIAÇÃO DAS TABELAS CONFORME EXTRAÇÃO DO SEU BANCO ORIGINAL
+        # 1. CRIAÇÃO DAS TABELAS COM AS TRAVAS E REGRAS DA VIRGÍNIA
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS configuracoes (
-            chave TEXT NOT NULL,
+            chave TEXT NOT NULL PRIMARY KEY,
             valor TEXT NOT NULL
         );
 
         CREATE TABLE IF NOT EXISTS edicoes (
-            id INTEGER NOT NULL,
+            id SERIAL PRIMARY KEY,
             nome_edicao TEXT NOT NULL
         );
 
         CREATE TABLE IF NOT EXISTS cursos (
-            id INTEGER NOT NULL,
+            id SERIAL PRIMARY KEY,
             nome_curso TEXT NOT NULL,
-            ativo INTEGER
+            ativo INTEGER DEFAULT 1
         );
 
         CREATE TABLE IF NOT EXISTS projetos (
-            id INTEGER NOT NULL,
+            id SERIAL PRIMARY KEY,
             nome_projeto TEXT NOT NULL,
-            ativo INTEGER
+            ativo INTEGER DEFAULT 1
         );
 
         CREATE TABLE IF NOT EXISTS usuarios (
-            id INTEGER NOT NULL,
+            id SERIAL PRIMARY KEY,
             nome TEXT NOT NULL,
             email_institucional TEXT,
-            login TEXT,
+            login TEXT UNIQUE,
             senha TEXT NOT NULL,
             tipo TEXT NOT NULL,
             status_conta TEXT,
             pergunta_seguranca TEXT,
             resposta_seguranca TEXT,
             chave_acesso TEXT,
-            ativo INTEGER,
-            data_cadastro TIMESTAMP WITHOUT TIME ZONE
+            ativo INTEGER DEFAULT 1,
+            data_cadastro TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
         );
 
-        -- 🚀 Alunos atualizado com o campo qr_token que causava o erro!
         CREATE TABLE IF NOT EXISTS alunos (
-            id_usuario INTEGER NOT NULL,
-            matricula TEXT NOT NULL,
+            id_usuario INTEGER NOT NULL PRIMARY KEY REFERENCES usuarios(id) ON DELETE CASCADE,
+            matricula TEXT NOT NULL UNIQUE,
             origem_cadastro TEXT,
             qr_token CHARACTER VARYING(255)
         );
 
-        -- 🚀 Professores atualizado com o id_corporativo do banco original
         CREATE TABLE IF NOT EXISTS professores (
-            id_usuario INTEGER NOT NULL,
-            id_corporativo TEXT
+            id_usuario INTEGER NOT NULL PRIMARY KEY REFERENCES usuarios(id) ON DELETE CASCADE,
+            id_corporativo TEXT UNIQUE
         );
 
+        -- 🚀 TRAVA UNIQUE AQUI: Garante o modelo de Curso Único por Aluno
         CREATE TABLE IF NOT EXISTS usuarios_cursos (
-            id_aluno INTEGER NOT NULL,
-            id_curso INTEGER NOT NULL
+            id_aluno INTEGER NOT NULL PRIMARY KEY REFERENCES usuarios(id) ON DELETE CASCADE,
+            id_curso INTEGER NOT NULL REFERENCES cursos(id) ON DELETE CASCADE,
+            CONSTRAINT unique_aluno_curso UNIQUE (id_aluno)
         );
 
         CREATE TABLE IF NOT EXISTS supervisores_projeto (
-            id_professor INTEGER NOT NULL,
-            id_projeto INTEGER NOT NULL
+            id_professor INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+            id_projeto INTEGER NOT NULL REFERENCES projetos(id) ON DELETE CASCADE,
+            PRIMARY KEY (id_professor, id_projeto)
         );
 
+        -- 🚀 TIMESTAMP DEFAULT: O banco calcula a data de inscrição automaticamente
         CREATE TABLE IF NOT EXISTS inscricoes (
-            id_aluno INTEGER NOT NULL,
-            id_projeto INTEGER NOT NULL,
-            id_edicao INTEGER NOT NULL,
-            presenca INTEGER,
-            data_inscricao TIMESTAMP WITHOUT TIME ZONE
+            id_aluno INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+            id_projeto INTEGER NOT NULL REFERENCES projetos(id) ON DELETE CASCADE,
+            id_edicao INTEGER NOT NULL REFERENCES edicoes(id) ON DELETE CASCADE,
+            presenca INTEGER DEFAULT 0,
+            data_inscricao TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id_aluno, id_projeto, id_edicao)
         );
         ''')
-        print("✔️ Tabelas criadas no modelo idêntico ao original.")
+        print("✔️ Tabelas criadas e normalizadas com Chaves Primárias, Auto-incrementos e Defaults.")
 
         # 2. INSERÇÃO DA PRIMEIRA EDIÇÃO E CONFIGURAÇÃO GLOBAL
-        # Como removemos o SERIAL para bater com o histórico do seu banco, inserimos o ID 1 manualmente para a primeira edição
         cursor.execute("SELECT id FROM edicoes WHERE nome_edicao = %s", ('2026.1',))
-        if not cursor.fetchone():
-            cursor.execute("INSERT INTO edicoes (id, nome_edicao) VALUES (%s, %s)", (1, '2026.1'))
-            id_edicao = 1
-        else:
-            cursor.execute("SELECT id FROM edicoes WHERE nome_edicao = %s", ('2026.1',))
+        res_edicao = cursor.fetchone()
+        if not res_edicao:
+            cursor.execute("INSERT INTO edicoes (nome_edicao) VALUES (%s) RETURNING id", ('2026.1',))
             id_edicao = cursor.fetchone()[0]
+        else:
+            id_edicao = res_edicao[0]
 
         cursor.execute("SELECT chave FROM configuracoes WHERE chave = %s", ('edicao_ativa',))
         if not cursor.fetchone():
@@ -120,11 +122,11 @@ def inicializar_novo_banco_normalizado():
         cursor.execute("SELECT id FROM usuarios WHERE login = %s", ('admin',))
         if not cursor.fetchone():
             admin_uuid = str(uuid.uuid4())
-            # Inserindo o ID 1 explicitamente para o primeiro admin
+            # Deixamos o SERIAL gerar o ID do Admin naturalmente para manter a integridade das sequências
             cursor.execute('''
-                INSERT INTO usuarios (id, nome, login, senha, tipo, status_conta, ativo, chave_acesso)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            ''', (1, 'Administrador Sistema', 'admin', generate_password_hash('admin123'), 'admin', 'ativo', 1, admin_uuid))
+                INSERT INTO usuarios (nome, login, senha, tipo, status_conta, ativo, chave_acesso)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            ''', ('Administrador Sistema', 'admin', generate_password_hash('admin123'), 'admin', 'ativo', 1, admin_uuid))
             print("✔️ Usuário Administrador Mestre criado.")
         else:
             print("ℹ️ Administrador Mestre já existia no sistema.")
