@@ -23,15 +23,15 @@
                 {{ ui.campo_input(nome="senha", label="Senha de Acesso (Mínimo 6 caracteres)", tipo="password", placeholder="Sua senha secreta") }}
 
                 <div class="mb-4">
-                    <label class="form-label fw-bold text-secondary">Seus Cursos (Selecione um ou mais)</label>
-                    <div class="border rounded p-3 bg-white" style="max-height: 160px; overflow-y: auto;">
+                    <label class="form-label fw-bold text-secondary">Seu Curso (Selecione uma opção)</label>
+                    <select name="curso" required class="form-select">
+                        <option value="">-- Escolha o seu curso --</option>
                         {% for curso in cursos %}
-                        <div class="form-check mb-2">
-                            <input class="form-check-input" type="checkbox" name="curso" value="{{ curso.id }}" id="c_{{ curso.id }}" {% if curso.id|string in request.form.getlist('curso') %}checked{% endif %}>
-                            <label class="form-check-label text-dark" for="c_{{ curso.id }}">{{ curso.nome_curso }}</label>
-                        </div>
+                            <option value="{{ curso.id }}" {% if curso.id|string == form_data.get('curso') or curso.id|string == request.form.get('curso') %}selected{% endif %}>
+                                {{ curso.nome_curso }}
+                            </option>
                         {% endfor %}
-                    </div>
+                    </select>
                 </div>
 
                 <div class="p-3 bg-light rounded border mb-4">
@@ -85,6 +85,13 @@
                         campoMatricula.focus();
                         return;
                     }
+                }
+
+                if (campoCurso && campoCurso.value === "") {
+                    e.preventDefault();
+                    alert('Erro de Cadastro: Você precisa selecionar um curso para continuar!');
+                    campoCurso.focus();
+                    return;
                 }
                 
                 if (campoSenha && campoSenha.value.trim().length < 6) {

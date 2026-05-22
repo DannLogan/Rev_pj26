@@ -42,7 +42,7 @@ def verificar_duplicidade_cadastro(matricula: str, login: str, email: str) -> st
             return "email"
     return None
 
-def cadastrar_primeiro_acesso_aluno(matricula: str, login: str, nome: str, email: str, senha_bruta: str, pergunta: str, resposta_bruta: str, cursos_ids: list) -> None:
+def cadastrar_primeiro_acesso_aluno(matricula: str, login: str, nome: str, email: str, senha_bruta: str, pergunta: str, resposta_bruta: str, id_curso: int) -> None:
     with obter_conexao() as cursor:
         chave_unica = str(uuid.uuid4())
         qr_token = str(uuid.uuid4())
@@ -52,18 +52,27 @@ def cadastrar_primeiro_acesso_aluno(matricula: str, login: str, nome: str, email
         
         # 1. Salva na tabela global de usuários
         cursor.execute("""
-            INSERT INTO usuarios (nome, login, email_institucional, senha, tipo, status_conta, pergunta_seguranca, resposta_seguranca, chave_acesso)
-            VALUES (%s, %s, %s, %s, 'aluno', 'ativo', %s, %s, %s) RETURNING id
+            INSERT INTO usuarios (nome, login, email_institucional, senha, tipo, status_conta, pergunta_seguranca, resposta_seguranca, chave_acesso, ativo)
+            VALUES (%s, %s, %s, %s, 'aluno', 'ativo', %s, %s, %s, 1) RETURNING id
         """, (nome, login, email, senha_hash, pergunta, resposta_hash, chave_unica))
-        novo_id = cursor.fetchone()['id']
         
+        # Dependendo de como seu 'obter_conexao' retorna o cursor (se dict ou tuple), ajustamos a captura do ID:
+        resultado = cursor.fetchone()
+        novo_id = resultado['id'] if isinstance(resultado, dict) else resultado[0]
+        
+        # 2. Salva na tabela de alunos
         cursor.execute("""
             INSERT INTO alunos (id_usuario, matricula, origem_cadastro, qr_token) 
             VALUES (%s, %s, 'manual', %s)
         """, (novo_id, matricula, qr_token))
         
-        for c_id in cursos_ids:
-            cursor.execute("INSERT INTO usuarios_cursos (id_aluno, id_curso) VALUES (%s, %s)", (novo_id, c_id))
+        # 3. Vincula ao curso único (Usando ON CONFLICT para garantir a regra)
+        cursor.execute("""
+            INSERT INTO usuarios_cursos (id_aluno, id_curso) 
+            VALUES (%s, %s)
+            ON CONFLICT (id_aluno) 
+            DO UPDATE SET id_curso = EXCLUDED.id_curso
+        """, (novo_id, id_curso))
             
 def salvar_conclusao_cadastro(usuario_id: int, nome: str, email: str, login: str, senha_bruta: str, pergunta: str, resposta_bruta: str, cursos_ids: list) -> None:
     with obter_conexao() as cursor:

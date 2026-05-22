@@ -4,7 +4,7 @@ import psycopg2
 import psycopg2.extras
 
 # Configurações de acesso ao Supabase (Padrão para desenvolvimento local)
-DB_HOST = "db.kkdtsaostzhqfmzvohmz.supabase.co"
+DB_HOST = "db.fzvzosmsgqmapkidboqo.supabase.co"
 DB_PORT = 5432
 DB_NAME = "postgres"
 DB_USER = "postgres"

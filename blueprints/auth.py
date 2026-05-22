@@ -63,9 +63,9 @@ def primeiro_acesso():
         matricula = form_data.get('matricula', '').strip()
         login_form = form_data.get('login', '').strip().lower().replace(" ", "")
         email = form_data.get('email', '').strip()
-        senha_real = form_data.get('senha', '') # 🚀 Captura o valor real digitado pelo usuário
+        senha_real = form_data.get('senha', '') 
+        id_curso = form_data.get('curso') # 🚀 ALTERADO: Captura um único curso selecionado no dropdown
 
-        # 🚀 CORREÇÃO: Mede o tamanho da variável real digitada na tela
         if len(senha_real) < 6:
             flash("Erro de Segurança: A senha deve conter no mínimo 6 caracteres.", "erro")
             return render_template('primeiro_acesso.html', cursos=cursos, form_data=form_data, erro_campo="senha")
@@ -74,15 +74,20 @@ def primeiro_acesso():
             flash("Erro de Validação: O RA/Matrícula deve conter exatamente 10 dígitos numéricos.", "erro")
             return render_template('primeiro_acesso.html', cursos=cursos, form_data=form_data, erro_campo="matricula")
 
+        if not id_curso:
+            flash("Erro de Validação: Você deve selecionar um curso.", "erro")
+            return render_template('primeiro_acesso.html', cursos=cursos, form_data=form_data, erro_campo="curso")
+
         conflito = auth_repository.verificar_duplicidade_cadastro(matricula, login_form, email)
         if conflito:
             flash(f"Este {conflito} já consta registrado no sistema!", "erro")
             return render_template('primeiro_acesso.html', cursos=cursos, form_data=form_data, erro_campo=conflito)
 
+        # 🚀 ALTERADO: Enviando int(id_curso) em vez de request.form.getlist('curso')
         auth_repository.cadastrar_primeiro_acesso_aluno(
             matricula, login_form, form_data.get('nome', '').strip(), email,
             senha_real, form_data.get('pergunta'), form_data.get('resposta', '').strip().lower(),
-            request.form.getlist('curso')
+            int(id_curso)
         )
         
         flash("Cadastro realizado com sucesso! Faça login.", "sucesso")
@@ -95,13 +100,16 @@ def primeiro_acesso():
 def concluir_cadastro():
     usuario = auth_repository.buscar_usuario_por_id(session['usuario_id'])
     cursos = admin_repository.listar_todos_cursos()
-    cursos_atuais_ids = [str(cid) for cid in auth_repository.buscar_cursos_usuario(session['usuario_id'])]
+    
+    # Busca o ID do curso atual do usuário de forma segura
+    cursos_usuario = auth_repository.buscar_cursos_usuario(session['usuario_id'])
+    curso_atual_id = str(cursos_usuario[0]) if cursos_usuario else ""
 
     if request.method == 'POST':
         form_data = request.form
         senha_form = form_data.get('senha', '')
+        id_curso = form_data.get('curso') # 🚀 ALTERADO: Captura o curso único
         
-        # 🚀 TRAVA DE SEGURANÇA: Bloqueia senhas menores que 6 caracteres
         if len(senha_form) < 6:
             flash("Erro de Segurança: A senha deve conter no mínimo 6 caracteres.", "erro")
             return render_template(
@@ -109,7 +117,7 @@ def concluir_cadastro():
                 cursos=cursos, 
                 usuario=usuario, 
                 form_data=form_data, 
-                cursos_atuais_ids=cursos_atuais_ids,
+                curso_atual_id=curso_atual_id,
                 erro_campo="senha"
             )
             
@@ -118,15 +126,20 @@ def concluir_cadastro():
         if usuario['status_conta'] == 'pendente' and login_form != usuario['login']:
             if auth_repository.buscar_usuario_por_identificador(login_form):
                 flash("Este login único já está em uso.", "erro")
-                return render_template('concluir_cadastro.html', cursos=cursos, usuario=usuario, form_data=form_data, cursos_atuais_ids=cursos_atuais_ids)
+                return render_template('concluir_cadastro.html', cursos=cursos, usuario=usuario, form_data=form_data, curso_atual_id=curso_atual_id)
             login_final = login_form
         else:
             login_final = usuario['login']
 
+        if not id_curso:
+            flash("Erro de Validação: Você deve selecionar um curso.", "erro")
+            return render_template('concluir_cadastro.html', cursos=cursos, usuario=usuario, form_data=form_data, curso_atual_id=curso_atual_id)
+
+        # 🚀 RECOMENDAÇÃO: Ajustar também em auth_repository.salvar_conclusao_cadastro para receber o int(id_curso) em vez de lista
         auth_repository.salvar_conclusao_cadastro(
             session['usuario_id'], form_data.get('nome', '').strip(), form_data.get('email', '').strip(),
             login_final, senha_form, form_data.get('pergunta'), 
-            form_data.get('resposta', '').strip().lower(), request.form.getlist('curso')
+            form_data.get('resposta', '').strip().lower(), int(id_curso)
         )
         
         session['status_conta'] = 'ativa'
@@ -134,7 +147,7 @@ def concluir_cadastro():
         flash("Cadastro concluído com sucesso!", "sucesso")
         return redirect(url_for('auth.index'))
 
-    return render_template('concluir_cadastro.html', cursos=cursos, usuario=usuario, form_data=request.form, cursos_atuais_ids=cursos_atuais_ids)
+    return render_template('concluir_cadastro.html', cursos=cursos, usuario=usuario, form_data=request.form, curso_atual_id=curso_atual_id)
 
 @auth_bp.route('/recuperar', methods=['GET', 'POST'])
 def recuperar_senha():
@@ -144,7 +157,7 @@ def recuperar_senha():
     if request.method == 'POST':
         form_data = request.form
         matricula_form = form_data.get('matricula', '').strip()
-        nova_senha = form_data.get('nova_senha', '') # 🚀 Captura a nova senha enviada
+        nova_senha = form_data.get('nova_senha', '') 
 
         usuario = auth_repository.buscar_usuario_por_identificador(matricula_form)
         
@@ -152,15 +165,11 @@ def recuperar_senha():
             flash("Matrícula ou Login não encontrados.", "erro")
             return render_template('recuperar.html', form_data=form_data, erro_campo='matricula')
 
-        # 🚀 TRAVA DE SEGURANÇA BACKEND: Verifica o tamanho da nova senha informada
         if len(nova_senha) < 6:
             flash("Erro de Segurança: A nova senha deve conter no mínimo 6 caracteres.", "erro")
             return render_template('recuperar.html', form_data=form_data, erro_campo='nova_senha')
 
-        # Se o tamanho da senha estiver correto, prossegue para validar a pergunta/resposta
         if usuario['pergunta_seguranca'] == form_data.get('pergunta') and check_password_hash(usuario['resposta_seguranca'], form_data.get('resposta', '').strip().lower()):
-            
-            # Executa a atualização segura no banco de dados
             auth_repository.atualizar_senha_recuperada(usuario['id'], nova_senha)
             flash("Senha alterada! Acesse com a nova credencial.", "sucesso")
             return redirect(url_for('auth.login'))
@@ -178,7 +187,8 @@ def editar_perfil():
     if request.method == 'POST':
         form_data = request.form
         login_form = form_data.get('matricula', '').strip().lower().replace(" ", "")
-        
+        id_curso = form_data.get('curso') # 🚀 ALTERADO: Campo único para curso
+
         if usuario['status_conta'] == 'pendente' and login_form != usuario['login']:
             if auth_repository.buscar_usuario_por_identificador(login_form):
                 flash("Este login único já está em uso.", "erro")
@@ -187,19 +197,22 @@ def editar_perfil():
         else:
             login_final = usuario['login']
 
+        # 🚀 ALTERADO: Passando int(id_curso) se houver
+        curso_final = int(id_curso) if id_curso else None
         auth_repository.atualizar_perfil_usuario(
             session['usuario_id'], form_data.get('nome').strip(), form_data.get('email').strip(),
-            login_final, form_data.get('nova_senha') or None, form_data.getlist('cursos')
+            login_final, form_data.get('nova_senha') or None, curso_final
         )
         
         session['nome'] = form_data.get('nome').strip()
-        flash("Perfil atualizado!", "sucesso")
+        flash("Perfil updated!", "sucesso")
         return redirect(form_data.get('voltar_url') or url_for('auth.index'))
 
     cursos = admin_repository.listar_todos_cursos()
     cursos_usuario = auth_repository.buscar_cursos_usuario(session['usuario_id']) if session.get('tipo') == 'aluno' else []
+    curso_usuario_id = cursos_usuario[0] if cursos_usuario else None
     
     referer = request.referrer or ''
     voltar_url = url_for('professor.professor_dashboard') if '/professor' in referer else url_for('admin.admin_painel') if '/admin' in referer else url_for('aluno.aluno_dashboard')
 
-    return render_template('editar_perfil.html', usuario=usuario, cursos=cursos, cursos_usuario=cursos_usuario, voltar_url=voltar_url)
+    return render_template('editar_perfil.html', usuario=usuario, cursos=cursos, curso_usuario_id=curso_usuario_id, voltar_url=voltar_url)

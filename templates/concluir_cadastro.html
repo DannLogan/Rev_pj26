@@ -9,7 +9,7 @@
         {% call ui.card(titulo="Concluir Configuração de Conta", icone="check-circle-fill", classe_header="bg-primario-evento text-white") %}
             <p class="text-muted text-center small mb-4">Verifique as suas informações e defina as suas credenciais definitivas.</p>
             
-            <form method="POST" action="{{ url_for('auth.concluir_cadastro') }}">
+            <form method="POST" action="{{ url_for('auth.concluir_cadastro') }}" id="form-concluir-cadastro">
                 
                 <div class="mb-3">
                     <label class="form-label fw-bold text-secondary">
@@ -44,15 +44,15 @@
 
                 {% if usuario.tipo == 'aluno' %}
                 <div class="mb-4">
-                    <label class="form-label fw-bold text-secondary">Confirme seus Cursos</label>
-                    <div class="border rounded p-3 bg-light" style="max-height: 120px; overflow-y: auto;">
+                    <label class="form-label fw-bold text-secondary">Confirme seu Curso</label>
+                    <select name="curso" required class="form-select">
+                        <option value="">-- Escolha o seu curso --</option>
                         {% for c in cursos %}
-                            <div class="form-check mb-2">
-                                <input class="form-check-input" type="checkbox" name="curso" value="{{ c.id }}" id="curso_{{ c.id }}" {% if c.id|string in form_data.getlist('curso') or c.id|string in cursos_atuais_ids %}checked{% endif %}>
-                                <label class="form-check-label" for="curso_{{ c.id }}">{{ c.nome_curso }}</label>
-                            </div>
+                            <option value="{{ c.id }}" {% if c.id|string == form_data.get('curso') or c.id|string == curso_atual_id %}selected{% endif %}>
+                                {{ c.nome_curso }}
+                            </option>
                         {% endfor %}
-                    </div>
+                    </select>
                 </div>
                 {% else %}
                 <div class="mb-4">
@@ -85,44 +85,51 @@
 </div>
 
 <script>
-    document.getElementById('form-usuario').addEventListener('submit', function(e) {
-        const campoSenha = document.querySelector('input[name="senha"]');
-        if (campoSenha && campoSenha.value.trim().length < 6) {
-            e.preventDefault(); // Barra o envio do formulário
-            alert('Segurança: A sua nova senha precisa ter pelo menos 6 caracteres!');
-            campoSenha.focus();
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('form-concluir-cadastro');
+        
+        if (form) {
+            form.addEventListener('submit', function(e) {
+                const campoSenha = document.querySelector('input[name="senha"]');
+                const campoCurso = document.querySelector('select[name="curso"]');
+                
+                // Validação 1: Curso (apenas se for perfil aluno)
+                if (campoCurso && campoCurso.value === "") {
+                    e.preventDefault();
+                    alert('Erro de Cadastro: Você precisa selecionar um curso para continuar!');
+                    campoCurso.focus();
+                    return;
+                }
+                
+                // Validação 2: Senha
+                if (campoSenha && campoSenha.value.trim().length < 6) {
+                    e.preventDefault();
+                    alert('Segurança: A sua nova senha precisa ter pelo menos 6 caracteres!');
+                    campoSenha.focus();
+                }
+            });
         }
     });
 </script>
 {% endblock %}
 
-{# ===================================================================== #}
-{# REGRAS DE PORTAL CATIVO (Bloqueio Total de Navegação Lateral/Superior)#}
-{# ===================================================================== #}
-
-{# 1. OCULTA A BARRA LATERAL #}
 {% block sidebar %}{% endblock %}
 
-{# 2. REFATORADO: Sobrescreve a Navbar inteira para injetar o botão Sair com segurança #}
 {% block navbar %}
 <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom px-4 py-3 shadow-sm">
     <div class="container-fluid p-0 d-flex align-items-center">
-        
         <span class="navbar-text fw-bold text-dark fs-5 text-truncate me-auto">
             Olá, <span class="text-primary">{{ session.get('nome', 'Usuário') }}</span>
         </span>
-        
         <div class="d-flex align-items-center">
             <a href="{{ url_for('auth.logout') }}" class="btn btn-danger fw-bold shadow-sm px-3">
                 <i class="bi bi-box-arrow-right me-1"></i> Sair do Sistema
             </a>
         </div>
-        
     </div>
 </nav>
 {% endblock %}
 
-{# 3. AJUSTA O LAYOUT DA TELA PARA 100% DA LARGURA #}
 {% block styles %}
 <style>
     main, .conteudo-principal, #main-content { 
