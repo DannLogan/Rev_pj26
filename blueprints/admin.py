@@ -157,25 +157,27 @@ def admin_gestao_usuarios():
 @requer_autenticacao
 @requer_perfil('admin')
 def admin_novo_usuario():
-    id_edicao = obter_configuracao_global('edicao_ativa')
+    id_edicao_cru = obter_configuracao_global('edicao_ativa')
     
+    try:
+        id_edicao = int(id_edicao_cru) if id_edicao_cru else None
+    except (ValueError, TypeError):
+        id_edicao = id_edicao_cru
+
     if request.method == 'POST':
         nome = request.form.get('nome', '').strip()
         tipo = request.form.get('tipo')
         matricula = request.form.get('identificador', '').strip()
         
-        # 🚀 SEGURANÇA BACKEND: Se o front enviar "[AUTOMÁTICO]" ou vier de Professor/Admin, limpa o campo
         if tipo != 'aluno':
             matricula = ""
 
-        # Validações estritas de entrada baseadas no perfil
         if not re.match(r'^[A-Za-zÀ-ÿ\s\d.-]+$', nome):
             flash("Erro de validação: O nome contém caracteres inválidos.", "erro")
         elif tipo == 'aluno' and (not matricula.isdigit() or len(matricula) != 10):
             flash("Para alunos, a matrícula deve conter exatamente 10 dígitos numéricos.", "erro")
         else:
             try:
-                # Se for aluno, precisamos verificar duplicidade antes de salvar
                 existe_usuario = False
                 if tipo == 'aluno':
                     with admin_repository.obter_conexao() as cursor:
@@ -185,20 +187,14 @@ def admin_novo_usuario():
                 if existe_usuario:
                     flash("Esta credencial/Login já existe no sistema.", "erro")
                 else:
-                    # 🚀 O REPOSITÓRIO AGORA RETORNA O ID GERADO PELO BANCO (Ex: 00001 ou 0001)
-                    # Como a senha inicial será idêntica ao login, geramos o hash dinamicamente após o retorno no repositório,
-                    # ou passamos uma senha provisória que o repositório ajustará.
-                    # Para manter o padrão, capturamos o login final gerado:
                     login_gerado = admin_repository.cadastrar_usuario_manual(
                         nome, matricula, tipo, "", str(uuid.uuid4()),
                         request.form.getlist('cursos_ids'), request.form.getlist('projetos_ids'),
                         request.form.getlist('inscricoes_ids'), id_edicao
                     )
                     
-                    # Formata a mensagem amigável para exibição em tela
                     perfil_nome = "Administrador" if tipo == 'admin' else ("Professor" if tipo == 'professor' else "Aluno")
                     
-                    # 🚀 ALERTA DETALHADO: Mostra o ID que o banco acabou de criar com os zeros à esquerda!
                     flash(
                         f"🎉 {perfil_nome} cadastrado com sucesso! "
                         f"O login de acesso gerado foi: <strong>{login_gerado}</strong>. "
@@ -210,15 +206,24 @@ def admin_novo_usuario():
                 flash(f"Erro ao salvar: {e}", "erro")
                 
     cursos = admin_repository.listar_todos_cursos()
-    projetos_filtrados = admin_repository.listar_projetos_ativos_por_edicao(id_edicao)
     
-    return render_template('admin_form_usuario.html', cursos=cursos, projects=projetos_filtrados, form_data=request.form, acao="Novo")
+    # 🚀 CORREÇÃO AQUI: Removeu o id_edicao dos parênteses para bater com o repositório global
+    projetos_filtrados = admin_repository.listar_projetos_ativos_por_edicao()
+    
+    # 🚀 CORREÇÃO DUPLA: Passa tanto projetos quanto projects para blindar o Jinja2 do HTML
+    return render_template('admin_form_usuario.html', cursos=cursos, projetos=projetos_filtrados, projects=projetos_filtrados, form_data=request.form, acao="Novo")
 
 @admin_bp.route('/usuario/editar/<int:id_usuario>', methods=['GET', 'POST'])
 @requer_autenticacao
 @requer_perfil('admin')
 def editar_usuario(id_usuario):
-    id_edicao = obter_configuracao_global('edicao_ativa')
+    id_edicao_cru = obter_configuracao_global('edicao_ativa')
+    
+    try:
+        id_edicao = int(id_edicao_cru) if id_edicao_cru else None
+    except (ValueError, TypeError):
+        id_edicao = id_edicao_cru
+        
     form_data = {}
     
     with admin_repository.obter_conexao() as cursor:
@@ -270,9 +275,11 @@ def editar_usuario(id_usuario):
             flash(f"Erro ao atualizar usuário: {e}", "erro")
 
     cursos = admin_repository.listar_todos_cursos()
-    projetos_filtrados = admin_repository.listar_projetos_ativos_por_edicao(id_edicao)
+    
+    # 🚀 CORREÇÃO AQUI: Removeu o id_edicao dos parênteses
+    projetos_filtrados = admin_repository.listar_projetos_ativos_por_edicao()
 
-    lista_cursos_ids = admin_repository.obter_cursos_ids_do_usuario(id_usuario)       
+    lista_cursos_ids = admin_repository.obter_cursos_ids_do_usuario(id_usuario)      
     lista_inscricoes_ids = admin_repository.obter_inscricoes_ids_do_usuario(id_usuario) 
     lista_projetos_ids = admin_repository.obter_projetos_ids_do_usuario(id_usuario)     
 
@@ -283,12 +290,13 @@ def editar_usuario(id_usuario):
         identificador=identificador_valor,
         cursos=cursos,
         projetos=projetos_filtrados,
+        projects=projetos_filtrados,
         lista_cursos_ids=lista_cursos_ids,
         lista_inscricoes_ids=lista_inscricoes_ids,
         lista_projetos_ids=lista_projetos_ids,
         form_data=form_data
     )
-
+        
 @admin_bp.route('/usuarios/toggle/<int:id>')
 @requer_autenticacao
 @requer_perfil('admin')

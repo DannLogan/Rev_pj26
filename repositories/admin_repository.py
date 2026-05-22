@@ -124,8 +124,8 @@ def alternar_status_projeto(id_projeto: int) -> str:
             return proj['nome_projeto']
     return None
 
-def listar_projetos_ativos_por_edicao(id_edicao: str) -> list:
-    """Retorna os projetos do sistema que estão com status ativo."""
+def listar_projetos_ativos_por_edicao(id_edicao: any = None) -> list:
+    """Retorna os projetos ativos globais protegendo contra parâmetros nulos ou sobressalentes."""
     sql = "SELECT id, nome_projeto FROM projetos WHERE ativo = 1 ORDER BY nome_projeto ASC"
     with obter_conexao() as cursor:
         cursor.execute(sql)
