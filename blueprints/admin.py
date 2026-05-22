@@ -29,7 +29,7 @@ def desativar_projeto(projeto_id):
         flash("Ação negada! Este projeto possui vínculos ativos com alunos ou professores.", "erro")
         return redirect(url_for('admin.admin_gestao_projetos'))
         
-    # 2. CORREÇÃO AQUI: Mudado para o nome real do seu repositório
+    # 2. Mudado para o nome real do seu repositório
     admin_repository.alternar_status_projeto(projeto_id, ativo=0)
     
     flash("Projeto desativado com sucesso.", "sucesso")
@@ -49,7 +49,7 @@ def admin_gestao_cursos():
     if request.method == 'POST':
         nome = request.form.get('nome_curso', '').strip()
         curso_id = request.form.get('curso_id') or None
-        admin_repository.salvar_curso(nome, curso_id)
+        admin_repository.salvar_curso(nome, Size=curso_id)
         flash("Curso processado com sucesso!", "sucesso")
 
     cursos = admin_repository.listar_todos_cursos()
@@ -85,7 +85,6 @@ def admin_gestao_projetos():
         projetos.append(proj_dict)
 
     return render_template('admin_projetos.html', projetos=projetos)
-
 
 @admin_bp.route('/projetos/toggle/<int:id>')
 @requer_autenticacao
@@ -151,7 +150,6 @@ def admin_gestao_usuarios():
         page_obj=page_obj
     )
 
-
 @admin_bp.route('/usuarios/novo', methods=['GET', 'POST'])
 @requer_autenticacao
 @requer_perfil('admin')
@@ -180,9 +178,7 @@ def admin_novo_usuario():
             except Exception as e:
                 flash(f"Erro ao salvar: {e}", "erro")
                 
-    # 🚀 CORREÇÃO 1: Filtrar para exibir apenas cursos e projetos ativos da edição atual
-    cursos = admin_repository.listar_todos_cursos() # Ou método equivalente para cursos
-    # Aqui usamos o filtro por edição ativa e apenas projetos ativos (ativo=1)
+    cursos = admin_repository.listar_todos_cursos()
     projetos_filtrados = admin_repository.listar_projetos_ativos_por_edicao(id_edicao)
     
     return render_template('admin_form_usuario.html', cursos=cursos, projetos=projetos_filtrados, form_data=request.form, acao="Novo")
@@ -192,10 +188,9 @@ def admin_novo_usuario():
 @requer_perfil('admin')
 def editar_usuario(id_usuario):
     id_edicao = obter_configuracao_global('edicao_ativa')
-    form_data = {} # 🚀 CORREÇÃO 1: Garante que a variável exista vazia logo no início (Evita o erro de Undefined no GET)
+    form_data = {}
     
     with admin_repository.obter_conexao() as cursor:
-        # 1. Busca os dados base do usuário primeiro
         cursor.execute("""
             SELECT id, nome, login, email_institucional, tipo, status_conta 
             FROM usuarios 
@@ -207,7 +202,6 @@ def editar_usuario(id_usuario):
         flash("Usuário não encontrado.", "erro")
         return redirect(url_for('admin.admin_gestao_usuarios'))
 
-    # 2. Resolução do identificador com base no tipo real do usuário
     identificador_valor = ""
     with admin_repository.obter_conexao() as cursor:
         if usuario['tipo'] == 'aluno':
@@ -225,31 +219,28 @@ def editar_usuario(id_usuario):
         form_data = request.form
         
         try:
-            # 🚀 CORREÇÃO 2: Adaptado para enviar um único ID de curso (int) em vez de uma lista getlist
             id_curso_selecionado = form_data.get('curso_id')
             curso_final = int(id_curso_selecionado) if id_curso_selecionado else None
 
             admin_repository.atualizar_usuario_admin(
                 id_usuario=id_usuario,
                 nome=form_data.get('nome', '').strip(),
-                tipo=usuario['tipo'],                           # Garante que o perfil original seja mantido
-                cursos_ids=curso_final,                         # 🚀 AGORA PASSANDO UM VALOR ÚNICO INTEIRO!
-                projetos_ids=form_data.getlist('projetos_ids'),   # Captura as caixas de Supervisão (Professor)
-                inscricoes_ids=form_data.getlist('inscricoes_ids'), # Captura as caixas de Inscrição (Aluno)
+                tipo=usuario['tipo'],
+                cursos_ids=curso_final,
+                projetos_ids=form_data.getlist('projetos_ids'),
+                inscricoes_ids=form_data.getlist('inscricoes_ids'),
                 id_edicao=id_edicao,
-                reset_senha=form_data.get('reset_senha', 'nao'), # Lê o checkbox do reset de senha do HTML
-                identificador=identificador_valor               # Passa o identificador blindado do banco
+                reset_senha=form_data.get('reset_senha', 'nao'),
+                identificador=identificador_valor
             )
-            flash("Usuário atualizado com sucesso!", "sucesso")
+            flash("Usuário updated com sucesso!", "sucesso")
             return redirect(url_for('admin.admin_gestao_usuarios'))
         except Exception as e:
             flash(f"Erro ao atualizar usuário: {e}", "erro")
 
-    # 3. Buscar as listas necessárias gerais para preencher a tela de Editar
     cursos = admin_repository.listar_todos_cursos()
     projetos_filtrados = admin_repository.listar_projetos_ativos_por_edicao(id_edicao)
 
-    # 4. Buscar o que este usuário específico já tem vinculado atualmente no banco 
     lista_cursos_ids = admin_repository.obter_cursos_ids_do_usuario(id_usuario)       
     lista_inscricoes_ids = admin_repository.obter_inscricoes_ids_do_usuario(id_usuario) 
     lista_projetos_ids = admin_repository.obter_projetos_ids_do_usuario(id_usuario)     
@@ -264,9 +255,9 @@ def editar_usuario(id_usuario):
         lista_cursos_ids=lista_cursos_ids,
         lista_inscricoes_ids=lista_inscricoes_ids,
         lista_projetos_ids=lista_projetos_ids,
-        form_data=form_data # 🚀 Enviando o dicionário limpo para o Jinja2 ler sem dar erro no GET
+        form_data=form_data
     )
-    
+
 @admin_bp.route('/usuarios/toggle/<int:id>')
 @requer_autenticacao
 @requer_perfil('admin')
@@ -306,7 +297,6 @@ def admin_importar():
             if 'nome' in str(linhas[0]).lower() or 'matricula' in str(linhas[0]).lower() or 'ra' in str(linhas[0]).lower():
                 linhas.pop(0)
 
-            # REMOVIDO INT() - Passa a string do ciclo
             id_edicao = obter_configuracao_global('edicao_ativa')
             sucessos, erros = admin_repository.processar_importacao_csv(linhas, id_edicao)
             
@@ -328,7 +318,6 @@ def admin_configuracoes():
             flash("Por favor, informe uma identificação de ciclo válida.", "erro")
             return redirect(url_for('admin.admin_configuracoes'))
             
-        # Executa as regras de validação severas
         resultado = admin_repository.atualizar_edicao_ativa(nova_edicao)
         
         if resultado == 'sucesso':
@@ -340,17 +329,14 @@ def admin_configuracoes():
             
         return redirect(url_for('admin.admin_configuracoes'))
         
-    # CORREÇÃO: Resolve o ID da configuração para exibir o texto amigável na tela
     id_edicao = obter_configuracao_global('edicao_ativa')
     texto_edicao = "Não configurado"
     
     if id_edicao:
         id_edicao_str = str(id_edicao).strip()
         with admin_repository.obter_conexao() as cursor:
-            # Se for puramente número, busca pelo ID da tabela edicoes
             if id_edicao_str.isdigit():
                 cursor.execute("SELECT nome_edicao FROM edicoes WHERE id = %s", (int(id_edicao_str),))
-            # Se for texto, busca direto pelo nome correspondente
             else:
                 cursor.execute("SELECT nome_edicao FROM edicoes WHERE nome_edicao = %s", (id_edicao_str,))
                 
