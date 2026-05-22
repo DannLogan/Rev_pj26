@@ -191,6 +191,7 @@ def admin_novo_usuario():
 @requer_perfil('admin')
 def editar_usuario(id_usuario):
     id_edicao = obter_configuracao_global('edicao_ativa')
+    form_data = {} # 🚀 CORREÇÃO 1: Garante que a variável exista vazia logo no início (Evita o erro de Undefined no GET)
     
     with admin_repository.obter_conexao() as cursor:
         # 1. Busca os dados base do usuário primeiro
@@ -222,30 +223,32 @@ def editar_usuario(id_usuario):
     if request.method == 'POST':
         form_data = request.form
         
-        # 🚀 CORREÇÃO AQUI: Mudamos o nome para 'atualizar_usuario_admin' e passamos todos os dados coletados das caixas de seleção
         try:
+            # 🚀 CORREÇÃO 2: Adaptado para enviar um único ID de curso (int) em vez de uma lista getlist
+            id_curso_selecionado = form_data.get('curso_id')
+            curso_final = int(id_curso_selecionado) if id_curso_selecionado else None
+
             admin_repository.atualizar_usuario_admin(
                 id_usuario=id_usuario,
                 nome=form_data.get('nome', '').strip(),
-                tipo=usuario['tipo'],                           # Garante que o perfil/tipo original seja mantido (imutável)
-                cursos_ids=form_data.getlist('cursos_ids'),     # Captura as caixas marcadas de Cursos
+                tipo=usuario['tipo'],                           # Garante que o perfil original seja mantido
+                cursos_ids=curso_final,                         # 🚀 AGORA PASSANDO UM VALOR ÚNICO INTEIRO!
                 projetos_ids=form_data.getlist('projetos_ids'),   # Captura as caixas de Supervisão (Professor)
                 inscricoes_ids=form_data.getlist('inscricoes_ids'), # Captura as caixas de Inscrição (Aluno)
                 id_edicao=id_edicao,
                 reset_senha=form_data.get('reset_senha', 'nao'), # Lê o checkbox do reset de senha do HTML
-                identificador=identificador_valor               # Passa o identificador blindado do banco de dados
+                identificador=identificador_valor               # Passa o identificador blindado do banco
             )
             flash("Usuário atualizado com sucesso!", "sucesso")
             return redirect(url_for('admin.admin_gestao_usuarios'))
         except Exception as e:
             flash(f"Erro ao atualizar usuário: {e}", "erro")
 
-    # 🚀 CORREÇÃO 2: Buscar as listas necessárias gerais para preencher a tela de Editar
+    # 3. Buscar as listas necessárias gerais para preencher a tela de Editar
     cursos = admin_repository.listar_todos_cursos()
     projetos_filtrados = admin_repository.listar_projetos_ativos_por_edicao(id_edicao)
 
-    # 🚀 CORREÇÃO 3: Buscar o que este usuário específico já tem vinculado atualmente no banco 
-    # para marcar automaticamente como "checked" as caixas
+    # 4. Buscar o que este usuário específico já tem vinculado atualmente no banco 
     lista_cursos_ids = admin_repository.obter_cursos_ids_do_usuario(id_usuario)       
     lista_inscricoes_ids = admin_repository.obter_inscricoes_ids_do_usuario(id_usuario) 
     lista_projetos_ids = admin_repository.obter_projetos_ids_do_usuario(id_usuario)     
@@ -259,18 +262,9 @@ def editar_usuario(id_usuario):
         projetos=projetos_filtrados,
         lista_cursos_ids=lista_cursos_ids,
         lista_inscricoes_ids=lista_inscricoes_ids,
-        lista_projetos_ids=lista_projetos_ids
+        lista_projetos_ids=lista_projetos_ids,
+        form_data=form_data # 🚀 Enviando o dicionário limpo para o Jinja2 ler sem dar erro no GET
     )
- 
-@admin_bp.route('/usuarios/toggle/<int:id>')
-@requer_autenticacao
-@requer_perfil('admin')
-def admin_toggle_usuario(id):
-    res = admin_repository.alternar_status_usuario(id)
-    if res:
-        status_txt = "Reativado" if res['novo_estado'] == 1 else "Ocultado"
-        flash(f"Usuário {res['nome']} modificado para: {status_txt}.", "sucesso")
-    return redirect(url_for('admin.admin_gestao_usuarios'))
 
 @admin_bp.route('/importar', methods=['GET', 'POST'])
 @requer_autenticacao
