@@ -121,10 +121,18 @@ def forçar_inscricao_com_presenca(id_aluno: int, id_projeto: int, id_edicao: st
 
 def listar_alunos_inscritos_no_projeto(id_projeto: int, id_edicao: str) -> list:
     sql = """
-        SELECT u.nome, a.matricula, i.presenca
+        SELECT 
+            u.nome, 
+            a.matricula, 
+            i.presenca,
+            COALESCE(c.nome_curso, 'Não Informado') AS nome_curso,
+            e.nome_edicao
         FROM usuarios u 
         JOIN alunos a ON u.id = a.id_usuario
         JOIN inscricoes i ON u.id = i.id_aluno
+        JOIN edicoes e ON i.id_edicao = e.id
+        LEFT JOIN usuarios_cursos uc ON a.id_usuario = uc.id_aluno
+        LEFT JOIN cursos c ON uc.id_curso = c.id
         WHERE i.id_projeto = %s AND i.id_edicao = %s 
         ORDER BY u.nome
     """

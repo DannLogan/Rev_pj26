@@ -93,11 +93,18 @@ def professor_exportar_csv(projeto_id):
 
     saida = StringIO(newline='')
     escritor = csv.writer(saida, delimiter=';')
-    escritor.writerow(['Matrícula / RA', 'Nome do Aluno', 'Status da Presença'])
+    
+    escritor.writerow(['Matrícula / RA', 'Nome do Aluno', 'Curso', 'Edição', 'Status da Presença'])
 
     for a in alunos:
         status = 'Presente' if a['presenca'] == 1 else 'Pendente'
-        escritor.writerow([a['matricula'], a['nome'], status])
+        escritor.writerow([
+            a['matricula'], 
+            a['nome'], 
+            a.get('nome_curso', 'Não Informado'), 
+            a.get('nome_edicao', 'Não Informada'), 
+            status
+        ])
 
     resposta = make_response('\ufeff' + saida.getvalue())
     nome_arquivo = f"chamada_{str(projeto['nome_projeto']).lower().replace(' ', '_')}.csv"
