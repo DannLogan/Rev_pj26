@@ -101,15 +101,15 @@
 
     {% include 'componentes/_alertas.html' %}
 
-    <div class="wrapper {% if session.get('usuario_id') %}com-sidebar{% endif %}">
-        {% if session.get('usuario_id') %}
+    <div class="wrapper {% if session.get('tipo') %}com-sidebar{% endif %}">
+        {% if session.get('tipo') %}
             {% block sidebar %}
                 {% include 'componentes/_sidebar.html' %}
             {% endblock %}
         {% endif %}
 
         <div id="main-content">
-            {% if session.get('usuario_id') %}
+            {% if session.get('tipo') %}
                 {% block navbar %}
                     {% include 'componentes/_navbar.html' %}
                 {% endblock %}
