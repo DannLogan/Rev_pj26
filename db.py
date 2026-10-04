@@ -4,11 +4,11 @@ import psycopg2
 import psycopg2.extras
 
 # Configurações de acesso ao Supabase (Padrão para desenvolvimento local)
-DB_HOST = "db.fzvzosmsgqmapkidboqo.supabase.co"
-DB_PORT = 5432
-DB_NAME = "postgres"
-DB_USER = "postgres"
-DB_PASS = "@Fr3qu3nc14.S1mp0s10"
+DB_HOST = os.environ.get("DB_HOST")
+DB_PORT = int(os.environ.get("DB_PORT", "5432"))
+DB_NAME = os.environ.get("DB_NAME", "postgres")
+DB_USER = os.environ.get("DB_USER", "postgres")
+DB_PASS = os.environ.get("DB_PASS")
 
 @contextmanager
 def obter_conexao():
@@ -20,6 +20,8 @@ def obter_conexao():
         # Se estiver no Render, conecta usando a URL robusta do Pooler (porta 6543)
         conn = psycopg2.connect(url_producao)
     else:
+        if not all((DB_HOST, DB_PASS)):
+            raise RuntimeError("DATABASE_URL ou DB_HOST/DB_PASS devem ser configurados")
         # Se estiver local (Termux/PC), usa os dados separados padrões
         conn = psycopg2.connect(
             host=DB_HOST, 

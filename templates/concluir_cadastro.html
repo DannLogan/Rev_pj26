@@ -10,6 +10,7 @@
             <p class="text-muted text-center small mb-4">Verifique as suas informações e defina as suas credenciais definitivas.</p>
             
             <form method="POST" action="{{ url_for('auth.concluir_cadastro') }}" id="form-concluir-cadastro">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 
                 <div class="mb-3">
                     <label class="form-label fw-bold text-secondary">
@@ -76,6 +77,12 @@
                     {{ ui.campo_input(nome="resposta", label="Resposta Secreta", valor=form_data.get('resposta', '')) }}
                 </div>
 
+                {% if usuario.tipo in ['professor', 'admin'] and usuario.status_conta == 'pendente' %}
+                <div class="alert alert-warning small">
+                    <i class="bi bi-shield-exclamation me-1"></i>
+                    Sua senha provisória é igual ao seu ID corporativo. Defina uma nova senha diferente do ID para concluir o primeiro acesso.
+                </div>
+                {% endif %}
                 {{ ui.campo_input(nome="senha", label="Defina sua Nova Senha (Mínimo 6 caracteres)", tipo="password", erro_campo=erro_campo) }}
 
                 {{ ui.botao(texto="CONCLUIR CADASTRO", tipo="submit", estilo="acao-evento w-100 py-3 fw-bold fs-5 mt-2") }}
@@ -122,9 +129,10 @@
             Olá, <span class="text-primary">{{ session.get('nome', 'Usuário') }}</span>
         </span>
         <div class="d-flex align-items-center">
-            <a href="{{ url_for('auth.logout') }}" class="btn btn-danger fw-bold shadow-sm px-3">
-                <i class="bi bi-box-arrow-right me-1"></i> Sair do Sistema
-            </a>
+            <form method="POST" action="{{ url_for('auth.logout') }}" class="d-inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-danger fw-bold shadow-sm px-3"><i class="bi bi-box-arrow-right me-1"></i> Sair do Sistema</button>
+            </form>
         </div>
     </div>
 </nav>

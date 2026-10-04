@@ -17,6 +17,7 @@
 
         {% call ui.card() %}
             <form action="{{ url_for('admin.admin_configuracoes') }}" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="acao" value="mudar_edicao">
                 <div class="mb-3">
                     <label class="form-label small fw-bold text-secondary">Edição Corrente Ativa:</label>

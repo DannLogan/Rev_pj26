@@ -33,24 +33,6 @@ def aluno_historico():
     historico = aluno_repository.obter_historico_aluno(session['usuario_id'], id_edicao)
     return render_template('aluno_historico.html', historico=historico)
 
-@aluno_bp.route('/inscrever/<int:projeto_id>/<string:token>')
-@requer_autenticacao
-@requer_perfil('aluno')
-def aluno_auto_inscrever(projeto_id, token):
-    try:
-        id_confirmado = obter_serializador().loads(token, salt='assinatura-presenca', max_age=8)
-        if id_confirmado != projeto_id:
-            flash("Token inválido.", "erro")
-            return redirect(url_for('aluno.aluno_dashboard'))
-    except (SignatureExpired, BadTimeSignature):
-        flash("O QR Code expirou ou assinatura é inválida.", "erro")
-        return redirect(url_for('aluno.aluno_dashboard'))
-
-    id_edicao = (obter_configuracao_global('edicao_ativa'))
-    aluno_repository.registrar_auto_presenca(session['usuario_id'], projeto_id, id_edicao)
-    flash("Presença e inscrição confirmadas!", "sucesso")
-    return redirect(url_for('aluno.aluno_dashboard'))
-
 @aluno_bp.route('/inscrever_manual', methods=['POST'])
 @requer_autenticacao
 @requer_perfil('aluno')

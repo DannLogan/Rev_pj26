@@ -18,7 +18,7 @@ admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 def admin_painel():
     return render_template('painel_admin.html')
 
-@admin_bp.route('/admin/projeto/<int:projeto_id>/desativar')
+@admin_bp.route('/admin/projeto/<int:projeto_id>/desativar', methods=['POST'])
 @requer_autenticacao
 @requer_perfil('admin')
 def desativar_projeto(projeto_id):
@@ -58,7 +58,7 @@ def admin_gestao_cursos():
     cursos = admin_repository.listar_todos_cursos()
     return render_template('admin_cursos.html', cursos=cursos)
 
-@admin_bp.route('/cursos/toggle/<int:id>')
+@admin_bp.route('/cursos/toggle/<int:id>', methods=['POST'])
 @requer_autenticacao
 @requer_perfil('admin')
 def admin_toggle_curso(id):
@@ -89,22 +89,17 @@ def admin_gestao_projetos():
 
     return render_template('admin_projetos.html', projetos=projetos)
 
-@admin_bp.route('/projetos/toggle/<int:id>')
+@admin_bp.route('/projetos/toggle/<int:id>', methods=['POST'])
 @requer_autenticacao
 @requer_perfil('admin')
 def admin_toggle_projeto(id):
     id_edicao = obter_configuracao_global('edicao_ativa')
     
-    with admin_repository.obter_conexao() as cursor:
-        cursor.execute("SELECT ativo FROM projetos WHERE id = %s", (id,))
-        proj = cursor.fetchone()
-        
-    if proj:
-        if proj['ativo'] == 1:
-            if admin_repository.verificar_vinculos_projeto(id, id_edicao):
-                flash("Operação negada! Este projeto possui alunos inscritos ou professores vinculados.", "erro")
-                return redirect(url_for('admin.admin_gestao_projetos'))
-                
+    if admin_repository.projeto_esta_ativo(id):
+        if admin_repository.verificar_vinculos_projeto(id, id_edicao):
+            flash("Operação negada! Este projeto possui alunos inscritos ou professores vinculados.", "erro")
+            return redirect(url_for('admin.admin_gestao_projetos'))
+
         nome_proj = admin_repository.alternar_status_projeto(id)
         if nome_proj:
             flash(f"Status do projeto '{nome_proj}' modificado!", "sucesso")
@@ -180,9 +175,7 @@ def admin_novo_usuario():
             try:
                 existe_usuario = False
                 if tipo == 'aluno':
-                    with admin_repository.obter_conexao() as cursor:
-                        cursor.execute("SELECT id FROM usuarios WHERE login = %s", (matricula.lower(),))
-                        existe_usuario = cursor.fetchone()
+                    existe_usuario = admin_repository.buscar_usuario_por_login(matricula.lower())
 
                 if existe_usuario:
                     flash("Esta credencial/Login já existe no sistema.", "erro")
@@ -226,30 +219,13 @@ def editar_usuario(id_usuario):
         
     form_data = {}
     
-    with admin_repository.obter_conexao() as cursor:
-        cursor.execute("""
-            SELECT id, nome, login, email_institucional, tipo, status_conta 
-            FROM usuarios 
-            WHERE id = %s
-        """, (id_usuario,))
-        usuario = cursor.fetchone()
+    usuario = admin_repository.obter_usuario_admin(id_usuario)
 
     if not usuario:
         flash("Usuário não encontrado.", "erro")
         return redirect(url_for('admin.admin_gestao_usuarios'))
 
-    identificador_valor = ""
-    with admin_repository.obter_conexao() as cursor:
-        if usuario['tipo'] == 'aluno':
-            cursor.execute("SELECT matricula FROM alunos WHERE id_usuario = %s", (id_usuario,))
-            res = cursor.fetchone()
-            if res:
-                identificador_valor = res['matricula']
-        else:
-            cursor.execute("SELECT id_corporativo FROM professores WHERE id_usuario = %s", (id_usuario,))
-            res = cursor.fetchone()
-            if res:
-                identificador_valor = res['id_corporativo']
+    identificador_valor = admin_repository.obter_identificador_usuario(id_usuario, usuario['tipo'])
 
     if request.method == 'POST':
         form_data = request.form
@@ -297,7 +273,7 @@ def editar_usuario(id_usuario):
         form_data=form_data
     )
         
-@admin_bp.route('/usuarios/toggle/<int:id>')
+@admin_bp.route('/usuarios/toggle/<int:id>', methods=['POST'])
 @requer_autenticacao
 @requer_perfil('admin')
 def admin_toggle_usuario(id):
@@ -373,15 +349,7 @@ def admin_configuracoes():
     
     if id_edicao:
         id_edicao_str = str(id_edicao).strip()
-        with admin_repository.obter_conexao() as cursor:
-            if id_edicao_str.isdigit():
-                cursor.execute("SELECT nome_edicao FROM edicoes WHERE id = %s", (int(id_edicao_str),))
-            else:
-                cursor.execute("SELECT nome_edicao FROM edicoes WHERE nome_edicao = %s", (id_edicao_str,))
-                
-            resultado = cursor.fetchone()
-            if resultado:
-                texto_edicao = resultado['nome_edicao']
+        texto_edicao = admin_repository.obter_nome_edicao(id_edicao_str)
                 
     return render_template('admin_configuracoes.html', edicao=texto_edicao)
 

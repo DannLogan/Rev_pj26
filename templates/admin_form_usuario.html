@@ -17,6 +17,7 @@
 
         {% call ui.card() %}
             <form action="" method="POST" id="form-usuario">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 {{ ui.campo_input(nome="nome", label="Nome Completo", valor=usuario.nome if usuario else form_data.get('nome', '')) }}
                 
                 <div class="mb-3">
@@ -171,7 +172,7 @@
                     inputIdentificador.classList.add('bg-light', 'text-muted');
                     inputIdentificador.removeAttribute('required');
                     inputIdentificador.value = "[AUTOMÁTICO]";
-                    dicaIdentificador.innerHTML = "<i class='bi bi-shield-lock-fill'></i> Bloqueado. O banco gerará a máscara sequencial <strong>00001</strong>.";
+                    dicaIdentificador.innerHTML = "<i class='bi bi-shield-lock-fill'></i> Bloqueado. O banco gerará o ID. <strong>O ID gerado será o login e a senha provisória.</strong> A senha deverá ser alterada no primeiro acesso.";
                     dicaIdentificador.className = "text-success fw-bold d-block mt-1";
                 }
                 inputIdentificador.removeAttribute('maxlength');
@@ -190,7 +191,7 @@
                     inputIdentificador.classList.add('bg-light', 'text-muted');
                     inputIdentificador.removeAttribute('required');
                     inputIdentificador.value = "[AUTOMÁTICO]";
-                    dicaIdentificador.innerHTML = "<i class='bi bi-shield-lock-fill'></i> Bloqueado. O banco gerará a máscara sequencial <strong>0001</strong>.";
+                    dicaIdentificador.innerHTML = "<i class='bi bi-shield-lock-fill'></i> Bloqueado. O banco gerará o ID. <strong>O ID gerado será o login e a senha provisória.</strong> A senha deverá ser alterada no primeiro acesso.";
                     dicaIdentificador.className = "text-danger fw-bold d-block mt-1";
                 }
                 inputIdentificador.removeAttribute('maxlength');

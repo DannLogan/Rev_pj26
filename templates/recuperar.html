@@ -10,6 +10,7 @@
             <p class="text-muted text-center small mb-4">Use sua pergunta chave para redefinir sua credencial.</p>
             
             <form method="POST" action="{{ url_for('auth.recuperar_senha') }}" id="form-recuperar">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 {{ ui.campo_input(nome="matricula", label="Sua Matrícula ou ID", placeholder="Ex: 0123456789", valor=form_data.get('matricula', ''), erro_campo=erro_campo) }}
                 
                 <div class="mb-3">

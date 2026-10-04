@@ -6,17 +6,18 @@ from werkzeug.security import generate_password_hash
 # ==============================================================================
 # 🚀 DADOS DE CONEXÃO DO NOVO SUPABASE (VIRGÍNIA)
 # ==============================================================================
-DB_HOST = "db.fzvzosmsgqmapkidboqo.supabase.co"
-DB_PORT = 5432
-DB_NAME = "postgres"
-DB_USER = "postgres"
-DB_PASS = "@Fr3qu3nc14.S1mp0s10"
+DB_HOST = os.environ.get("DB_HOST")
+DB_PORT = int(os.environ.get("DB_PORT", "5432"))
+DB_NAME = os.environ.get("DB_NAME", "postgres")
+DB_USER = os.environ.get("DB_USER", "postgres")
+DB_PASS = os.environ.get("DB_PASS")
 
 def inicializar_novo_banco_normalizado():
     print("--- Iniciando Criação do Banco de Dados Atualizado na Virgínia ---")
     
     try:
-        conn = psycopg2.connect(
+        database_url = os.environ.get("DATABASE_URL")
+        conn = psycopg2.connect(database_url) if database_url else psycopg2.connect(
             host=DB_HOST,
             port=DB_PORT,
             database=DB_NAME,
@@ -31,6 +32,9 @@ def inicializar_novo_banco_normalizado():
             chave TEXT NOT NULL PRIMARY KEY,
             valor TEXT NOT NULL
         );
+
+        CREATE SEQUENCE IF NOT EXISTS seq_id_professor;
+        CREATE SEQUENCE IF NOT EXISTS seq_id_admin;
 
         CREATE TABLE IF NOT EXISTS edicoes (
             id SERIAL PRIMARY KEY,
@@ -99,6 +103,19 @@ def inicializar_novo_banco_normalizado():
             PRIMARY KEY (id_aluno, id_projeto, id_edicao)
         );
         ''')
+
+        cursor.execute("""
+            SELECT setval(
+                'seq_id_professor',
+                GREATEST(COALESCE((SELECT MAX(id_corporativo::INTEGER) FROM professores WHERE id_corporativo ~ '^[0-9]+$'), 0) + 1, 1),
+                false
+            );
+            SELECT setval(
+                'seq_id_admin',
+                GREATEST(COALESCE((SELECT MAX(NULLIF(login, '')::INTEGER) FROM usuarios WHERE tipo = 'admin' AND login ~ '^[0-9]+$'), 0) + 1, 1),
+                false
+            );
+        """)
         print("✔️ Tabelas criadas e normalizadas com Chaves Primárias, Auto-incrementos e Defaults.")
 
         # 2. INSERÇÃO DA PRIMEIRA EDIÇÃO E CONFIGURAÇÃO GLOBAL
