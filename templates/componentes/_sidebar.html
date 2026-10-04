@@ -79,9 +79,12 @@
                 </a>
             </li>
             <li class="nav-item">
-                <a href="{{ url_for('auth.logout') }}" class="nav-link text-danger d-flex align-items-center gap-2 py-2 fw-bold bg-danger-subtle bg-opacity-10 rounded">
-                    <i class="bi bi-box-arrow-right fs-5"></i> Sair do Sistema
-                </a>
+                <form method="POST" action="{{ url_for('auth.logout') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="nav-link text-danger d-flex align-items-center gap-2 py-2 fw-bold bg-danger-subtle bg-opacity-10 rounded border-0 w-100">
+                        <i class="bi bi-box-arrow-right fs-5"></i> Sair do Sistema
+                    </button>
+                </form>
             </li>
         </ul>
     </div>

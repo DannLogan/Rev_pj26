@@ -10,6 +10,7 @@
             <p class="text-muted text-center small mb-4">Preencha os campos abaixo para realizar o seu cadastro no portal.</p>
             
             <form action="{{ url_for('auth.primeiro_acesso') }}" method="POST" id="form-primeiro-acesso">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 {{ ui.campo_input(nome="matricula", label="Matrícula / RA (10 dígitos)", placeholder="Ex: 2024101010", valor=form_data.get('matricula', ''), erro_campo=erro_campo) }}
                 
                 <div class="mb-3">

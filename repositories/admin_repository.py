@@ -218,15 +218,15 @@ def cadastrar_usuario_manual(nome: str, identificador: str, tipo: str, senha_has
         # FLUXO 2: CADASTRO DE PROFESSOR OU ADMIN (Gerador Sequencial com Máscara)
         # =====================================================================
         elif tipo in ['professor', 'admin']:
-            # 1. Consulta a sequência correta e aplica o preenchimento de zeros (zfill)
+            # 1. Usa as sequências mantidas pelo schema, preservando o comportamento original.
             if tipo == 'professor':
                 cursor.execute("SELECT nextval('public.seq_id_professor') AS numero;")
                 num = cursor.fetchone()['numero']
-                id_corporativo_gerado = str(num).zfill(5)  # 👈 Formato '00001'
+                id_corporativo_gerado = str(num).zfill(5)
             else:
                 cursor.execute("SELECT nextval('public.seq_id_admin') AS numero;")
                 num = cursor.fetchone()['numero']
-                id_corporativo_gerado = str(num).zfill(4)  # 👈 Formato '0001'
+                id_corporativo_gerado = str(num).zfill(4)
 
             # 2. Gera a senha criptografada baseada no ID sequencial numérico exato
             senha_colaborador_hash = generate_password_hash(id_corporativo_gerado)
@@ -461,3 +461,33 @@ def obter_relatorio_geral_presencas(id_edicao: str) -> list:
         """
         cursor.execute(sql, (id_real_edicao,))
         return cursor.fetchall()
+
+def projeto_esta_ativo(id_projeto: int) -> bool:
+    with obter_conexao() as cursor:
+        cursor.execute("SELECT ativo FROM projetos WHERE id = %s", (id_projeto,))
+        projeto = cursor.fetchone()
+        return bool(projeto and projeto['ativo'] == 1)
+
+def buscar_usuario_por_login(login: str) -> dict:
+    with obter_conexao() as cursor:
+        cursor.execute("SELECT id FROM usuarios WHERE login = %s", (login,))
+        return cursor.fetchone()
+
+def obter_usuario_admin(id_usuario: int) -> dict:
+    with obter_conexao() as cursor:
+        cursor.execute("SELECT id, nome, login, email_institucional, tipo, status_conta FROM usuarios WHERE id = %s", (id_usuario,))
+        return cursor.fetchone()
+
+def obter_identificador_usuario(id_usuario: int, tipo: str) -> str:
+    tabela, coluna = ('alunos', 'matricula') if tipo == 'aluno' else ('professores', 'id_corporativo')
+    with obter_conexao() as cursor:
+        cursor.execute(f"SELECT {coluna} FROM {tabela} WHERE id_usuario = %s", (id_usuario,))
+        resultado = cursor.fetchone()
+        return resultado[coluna] if resultado else ""
+
+def obter_nome_edicao(id_edicao: str) -> str:
+    with obter_conexao() as cursor:
+        valor = str(id_edicao).strip()
+        cursor.execute("SELECT nome_edicao FROM edicoes WHERE id = %s" if valor.isdigit() else "SELECT nome_edicao FROM edicoes WHERE nome_edicao = %s", (int(valor) if valor.isdigit() else valor,))
+        resultado = cursor.fetchone()
+        return resultado['nome_edicao'] if resultado else "Não configurado"

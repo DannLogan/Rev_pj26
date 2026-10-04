@@ -1,9 +1,11 @@
 import csv
 from io import StringIO
-from flask import Blueprint, render_template, session, redirect, url_for, flash, request, make_response
+from flask import Blueprint, render_template, session, redirect, url_for, flash, request, make_response, current_app
 from utils.decorators import requer_autenticacao, requer_perfil
 from repositories import professor_repository
 from db import obter_configuracao_global
+from services.attendance_service import AttendanceService
+from extensions import limiter
 
 professor_bp = Blueprint('professor', __name__, url_prefix='/professor')
 
@@ -13,18 +15,7 @@ professor_bp = Blueprint('professor', __name__, url_prefix='/professor')
 def professor_dashboard():
     id_edicao = obter_configuracao_global('edicao_ativa')
     
-    nome_exibicao_edicao = "Não configurado"
-    
-    if id_edicao:
-        with professor_repository.obter_conexao() as cursor:
-            if str(id_edicao).strip().isdigit():
-                cursor.execute("SELECT nome_edicao FROM edicoes WHERE id = %s", (int(id_edicao),))
-            else:
-                cursor.execute("SELECT nome_edicao FROM edicoes WHERE nome_edicao = %s", (str(id_edicao).strip(),))
-                
-            resultado = cursor.fetchone()
-            if resultado:
-                nome_exibicao_edicao = resultado['nome_edicao']
+    nome_exibicao_edicao = professor_repository.obter_nome_edicao(id_edicao) if id_edicao else "Não configurado"
 
     projetos = professor_repository.obter_projetos_supervisor(session['usuario_id'], id_edicao)
     return render_template('dashboard_professor.html', projetos=projetos, edicao=nome_exibicao_edicao)
@@ -53,29 +44,28 @@ def professor_scanner(projeto_id):
     return render_template('professor_scanner.html', projeto=projeto, projeto_id=projeto_id)
 
 @professor_bp.route('/projeto/<int:projeto_id>/registrar/<string:token_qrcode>')
+@limiter.limit(lambda: __import__('flask').current_app.config['QR_RATE_LIMIT'])
 @requer_autenticacao
 @requer_perfil('professor')
 def registrar_presenca(projeto_id, token_qrcode):
     try:
         id_edicao = obter_configuracao_global('edicao_ativa')
-        aluno = professor_repository.buscar_aluno_por_qr_token(token_qrcode)
+        resultado = AttendanceService(professor_repository).register_from_qr(
+            token_qrcode, projeto_id, id_edicao
+        )
         
-        if not aluno:
-            flash("QR Code inválido, expirado ou não pertence a um aluno ativo.", "erro")
-            return redirect(url_for('professor.professor_projeto', projeto_id=projeto_id))
-            
-        # Executa a validação baseada nos três estados do repositório atualizado
-        resultado = professor_repository.registrar_presenca_aluno(aluno['id'], projeto_id, id_edicao)
-        
-        if resultado == 'sucesso':
-            flash(f"Presença de {aluno['nome']} computada com sucesso!", "sucesso")
-        elif resultado == 'ja_presente':
-            flash(f"Aviso: A presença de {aluno['nome']} já havia sido registrada anteriormente.", "info")
+        if resultado['status'] == 'sucesso':
+            flash(f"Presença de {resultado['student']['nome']} computada com sucesso!", "sucesso")
+        elif resultado['status'] == 'ja_presente':
+            flash(f"Aviso: A presença de {resultado['student']['nome']} já havia sido registrada anteriormente.", "info")
         else:
-            flash(f"Atenção: {aluno['nome']} não possui inscrição ativa nesta atividade.", "erro")
-            
+            flash(f"Atenção: {resultado['student']['nome']} não possui inscrição ativa nesta atividade.", "erro")
+    except ValueError:
+        flash("QR Code inválido ou não pertence a um aluno ativo.", "erro")
+    
     except Exception as e:
-        flash(f"Falha operacional ao registrar: {e}", "erro")
+        current_app.logger.exception("Falha ao registrar presença", exc_info=e)
+        flash("Não foi possível registrar a presença. Tente novamente.", "erro")
         
     return redirect(url_for('professor.professor_projeto', projeto_id=projeto_id))
 

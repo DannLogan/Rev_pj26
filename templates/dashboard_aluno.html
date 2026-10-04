@@ -48,6 +48,7 @@
         <div class="card p-4 shadow-sm bg-white border-start border-4 {% if i.presenca == 1 %}border-success{% else %}border-warning{% endif %} position-relative">
             {% if i.presenca == 0 %}
             <form action="{{ url_for('aluno.aluno_cancelar_inscricao', projeto_id=i.projeto_id) }}" method="POST" class="position-absolute end-0 top-0 p-3">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" onclick="return confirm('Deseja realmente cancelar esta inscrição?')" class="btn-close shadow-none" title="Cancelar Inscrição"></button>
             </form>
             {% endif %}
@@ -88,6 +89,7 @@
         <p class="text-muted small mb-3">Digite o nome do projeto para localizá-lo rapidamente.</p>
         
         <form action="{{ url_for('aluno.aluno_inscrever_manual') }}" method="POST" id="form-inscricao-local">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="mb-4 position-relative">
                 <label class="form-label text-secondary fw-bold small mb-1">Selecione ou busque a atividade:</label>
                 

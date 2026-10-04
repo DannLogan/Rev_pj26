@@ -46,7 +46,7 @@ def login():
         flash("Identificador ou senha incorretos.", "erro")
     return render_template('login.html')
 
-@auth_bp.route('/logout')
+@auth_bp.route('/logout', methods=['POST'])
 def logout():
     session.clear()
     return redirect(url_for('auth.login'))
@@ -117,6 +117,14 @@ def concluir_cadastro():
                 usuario=usuario, 
                 form_data=form_data, 
                 curso_atual_id=curso_atual_id,
+                erro_campo="senha"
+            )
+
+        if usuario['status_conta'] == 'pendente' and usuario['tipo'] in ('professor', 'admin') and senha_form == usuario['login']:
+            flash("Por segurança, a nova senha deve ser diferente do ID corporativo e da senha provisória.", "erro")
+            return render_template(
+                'concluir_cadastro.html', cursos=cursos, usuario=usuario,
+                form_data=form_data, curso_atual_id=curso_atual_id,
                 erro_campo="senha"
             )
             

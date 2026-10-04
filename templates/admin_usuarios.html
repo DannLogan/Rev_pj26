@@ -93,9 +93,12 @@
                             <a href="{{ url_for('admin.editar_usuario', id_usuario=u.id) }}" class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1 fw-bold">
                                 <i class="bi bi-pencil-square"></i> Editar
                             </a>
-                            <a href="{{ url_for('admin.admin_toggle_usuario', id=u.id) }}" class="btn btn-sm {% if u.ativo %}btn-outline-warning{% else %}btn-outline-success{% endif %} d-inline-flex align-items-center gap-1 fw-bold">
-                                {% if u.ativo %}<i class="bi bi-eye-slash-fill"></i> Ocultar{% else %}<i class="bi bi-eye-fill"></i> Reativar{% endif %}
-                            </a>
+                            <form method="POST" action="{{ url_for('admin.admin_toggle_usuario', id=u.id) }}">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-sm {% if u.ativo %}btn-outline-warning{% else %}btn-outline-success{% endif %} d-inline-flex align-items-center gap-1 fw-bold">
+                                    {% if u.ativo %}<i class="bi bi-eye-slash-fill"></i> Ocultar{% else %}<i class="bi bi-eye-fill"></i> Reativar{% endif %}
+                                </button>
+                            </form>
                         </div>
                     </td>
                 </tr>

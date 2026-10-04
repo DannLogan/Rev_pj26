@@ -74,6 +74,13 @@ def buscar_aluno_por_chave_acesso(chave_acesso: str) -> dict:
         cursor.execute(sql, (chave_acesso,))
         return cursor.fetchone()
 
+def obter_nome_edicao(id_edicao: str) -> str:
+    with obter_conexao() as cursor:
+        valor = str(id_edicao).strip()
+        cursor.execute("SELECT nome_edicao FROM edicoes WHERE id = %s" if valor.isdigit() else "SELECT nome_edicao FROM edicoes WHERE nome_edicao = %s", (int(valor) if valor.isdigit() else valor,))
+        resultado = cursor.fetchone()
+        return resultado['nome_edicao'] if resultado else "Não configurado"
+
 def obter_inscricao_aluno(id_aluno: int, id_projeto: int, id_edicao: str) -> dict:
     sql = "SELECT presenca FROM inscricoes WHERE id_aluno = %s AND id_projeto = %s AND id_edicao = %s"
     with obter_conexao() as cursor:
