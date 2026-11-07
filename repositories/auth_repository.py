@@ -1,6 +1,7 @@
 import uuid
 from db import obter_conexao
 from werkzeug.security import generate_password_hash
+from utils.passwords import hash_password
 
 def buscar_usuario_por_identificador(identificador: str) -> dict:
     sql = """
@@ -50,7 +51,7 @@ def identificador_em_uso(identificador: str, usuario_id: int) -> bool:
 
 def salvar_conclusao_cadastro(usuario_id: int, nome: str, email: str, login: str, senha_bruta: str, pergunta: str, resposta_bruta: str, cursos_ids: any) -> None:
     with obter_conexao() as cursor:
-        senha_hash = generate_password_hash(senha_bruta)
+        senha_hash = hash_password(senha_bruta)
         resposta_hash = generate_password_hash(resposta_bruta)
         
         cursor.execute("""
@@ -83,7 +84,7 @@ def salvar_conclusao_cadastro(usuario_id: int, nome: str, email: str, login: str
                 if c_id:
                     cursor.execute("INSERT INTO usuarios_cursos (id_aluno, id_curso) VALUES (%s, %s)", (usuario_id, int(c_id)))
                     
-def atualizar_perfil_usuario(usuario_id: int, nome: str, email: str, login: str = None, nova_senha_bruta: str = None, cursos_ids: list = None) -> None:
+def atualizar_perfil_usuario(usuario_id: int, nome: str, email: str, login: str = None, nova_senha_bruta: str = None) -> None:
     with obter_conexao() as cursor:
         campos = ["nome = %s", "email_institucional = %s"]
         valores = [nome, email]
@@ -93,19 +94,12 @@ def atualizar_perfil_usuario(usuario_id: int, nome: str, email: str, login: str 
             valores.append(login)
         if nova_senha_bruta:
             campos.append("senha = %s")
-            valores.append(generate_password_hash(nova_senha_bruta))
+            valores.append(hash_password(nova_senha_bruta))
             
         valores.append(usuario_id)
         sql = f"UPDATE usuarios SET {', '.join(campos)} WHERE id = %s"
         cursor.execute(sql, tuple(valores))
             
-        cursor.execute("SELECT tipo FROM usuarios WHERE id = %s", (usuario_id,))
-        usuario = cursor.fetchone()
-        
-        if usuario and usuario['tipo'] == 'aluno' and cursos_ids is not None:
-            cursor.execute("DELETE FROM usuarios_cursos WHERE id_aluno = %s", (usuario_id,))
-            for c_id in cursos_ids:
-                cursor.execute("INSERT INTO usuarios_cursos (id_aluno, id_curso) VALUES (%s, %s)", (usuario_id, c_id))
 
 def buscar_cursos_usuario(usuario_id: int) -> list:
     with obter_conexao() as cursor:
@@ -115,12 +109,22 @@ def buscar_cursos_usuario(usuario_id: int) -> list:
 def atualizar_senha_recuperada(usuario_id: int, nova_senha_bruta: str) -> None:
     sql = "UPDATE usuarios SET senha = %s WHERE id = %s"
     with obter_conexao() as cursor:
-        cursor.execute(sql, (generate_password_hash(nova_senha_bruta), usuario_id))
+        cursor.execute(sql, (hash_password(nova_senha_bruta), usuario_id))
 
 def buscar_estado_sessao(usuario_id: int) -> dict | None:
     with obter_conexao() as cursor:
         cursor.execute(
-            "SELECT tipo, status_conta, senha FROM usuarios WHERE id = %s AND ativo = 1",
+            """
+            SELECT u.tipo, u.status_conta, u.senha,
+                   ARRAY(
+                       SELECT p.codigo
+                       FROM rbac_permissoes p
+                       LEFT JOIN rbac_papel_permissoes rp ON rp.papel = u.tipo AND rp.permissao = p.codigo
+                       LEFT JOIN rbac_usuario_permissoes up ON up.id_usuario = u.id AND up.permissao = p.codigo
+                       WHERE COALESCE(up.permitido, rp.permissao IS NOT NULL)
+                   ) AS permissoes
+            FROM usuarios u WHERE u.id = %s AND u.ativo = 1
+            """,
             (usuario_id,),
         )
         return cursor.fetchone()

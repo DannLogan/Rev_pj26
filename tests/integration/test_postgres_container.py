@@ -1,3 +1,4 @@
+import json
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
 
@@ -11,7 +12,7 @@ from repositories.aluno_repository import cancelar_inscricao_pendente, realizar_
 from repositories.professor_repository import listar_chamadas_supervisor, registrar_presenca_aluno
 
 
-def test_apenas_uma_leitura_concorrente_confirma_presenca(monkeypatch):
+def test_apenas_uma_leitura_concorrente_confirma_presenca(monkeypatch, tmp_path):
     with PostgresContainer("postgres:16") as postgres:
         url = postgres.get_connection_url().replace("postgresql+psycopg2://", "postgresql://", 1)
         monkeypatch.setenv("DATABASE_URL", url)
@@ -93,3 +94,29 @@ def test_apenas_uma_leitura_concorrente_confirma_presenca(monkeypatch):
         assert registrar_presenca_aluno(
             ids["aluno"], projeto, edicao, ids["professor"], curso
         ) == "edicao_indisponivel"
+
+        backup = tmp_path / "cadastro.json"
+        with obter_conexao() as cursor:
+            cursor.execute("SELECT id AS id_anterior FROM usuarios ORDER BY id")
+            usuarios = list(cursor.fetchall())
+            cursor.execute("SELECT id AS id_anterior FROM cursos ORDER BY id")
+            cursos = list(cursor.fetchall())
+        backup.write_text(json.dumps({"usuarios": usuarios, "cursos": cursos}), encoding="utf-8")
+
+        with monkeypatch.context() as sem_credencial:
+            sem_credencial.delenv("BOOTSTRAP_ADMIN_PASSWORD")
+            with pytest.raises(RuntimeError, match="BOOTSTRAP_ADMIN_PASSWORD"):
+                inicializar_novo_banco_normalizado(backup=backup)
+        with obter_conexao() as cursor:
+            cursor.execute("SELECT count(*) AS total FROM usuarios")
+            assert cursor.fetchone()["total"] == len(usuarios)
+
+        inicializar_novo_banco_normalizado(backup=backup)
+        with obter_conexao() as cursor:
+            cursor.execute("SELECT login, senha FROM usuarios")
+            contas = cursor.fetchall()
+            assert len(contas) == 1
+            assert contas[0]["login"] == "admin"
+            assert contas[0]["senha"].startswith("$2b$")
+            cursor.execute("SELECT count(*) AS total FROM inscricoes")
+            assert cursor.fetchone()["total"] == 0

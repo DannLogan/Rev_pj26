@@ -1,7 +1,7 @@
 from time import time
 from utils.security import marca_sessao
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash, current_app
-from werkzeug.security import check_password_hash
+from utils.passwords import verify_password
 from itsdangerous import URLSafeTimedSerializer
 from extensions import limiter
 from utils.decorators import requer_autenticacao
@@ -38,7 +38,7 @@ def login():
         senha = request.form.get('senha', '')
         usuario = auth_repository.buscar_usuario_por_identificador(identificador)
 
-        if usuario and check_password_hash(usuario['senha'], senha):
+        if usuario and verify_password(usuario['senha'], senha):
             identificadores = (usuario['login'], usuario['matricula'], usuario['id_corporativo'])
             if (usuario['status_conta'] == 'pendente' and senha in identificadores) or (
                 usuario['tipo'] == 'admin' and usuario['login'] == 'admin' and senha == 'admin123'
@@ -89,10 +89,10 @@ def concluir_cadastro():
             return redirect(request.path)
 
         senha_form = form_data.get('senha', '')
-        id_curso = form_data.get('curso')
+        id_curso = cursos_usuario[0] if cursos_usuario else form_data.get('curso')
         
-        if len(senha_form) < 6:
-            flash("Erro de Segurança: A senha deve conter no mínimo 6 caracteres.", "erro")
+        if len(senha_form) < 12 or len(senha_form.encode("utf-8")) > 72:
+            flash("A senha deve ter pelo menos 12 caracteres e no máximo 72 bytes em UTF-8.", "erro")
             return render_template(
                 'concluir_cadastro.html', 
                 cursos=cursos, 
@@ -174,7 +174,6 @@ def editar_perfil():
             return redirect(request.path)
 
         login_form = form_data.get('matricula', '').strip().lower().replace(" ", "")
-        id_curso = form_data.get('curso') 
         
         voltar_url_post = voltar_url
 
@@ -186,12 +185,15 @@ def editar_perfil():
         else:
             login_final = usuario['login']
 
-        curso_final = int(id_curso) if (usuario['tipo'] == 'aluno' and id_curso and str(id_curso).isdigit()) else None
+        nova_senha = form_data.get('nova_senha') or None
+        if nova_senha and (len(nova_senha) < 12 or len(nova_senha.encode("utf-8")) > 72):
+            flash("A senha deve ter pelo menos 12 caracteres e no máximo 72 bytes em UTF-8.", "erro")
+            return redirect(request.path)
         
         try:
             auth_repository.atualizar_perfil_usuario(
                 session['usuario_id'], form_data.get('nome').strip(), form_data.get('email').strip(),
-                login_final, form_data.get('nova_senha') or None, curso_final
+                login_final, nova_senha
             )
             
             session['nome'] = form_data.get('nome').strip()

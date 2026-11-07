@@ -7,10 +7,10 @@ import uuid
 import secrets
 import math
 from io import StringIO
-from flask import Blueprint, render_template, session, redirect, url_for, flash, request, make_response, current_app
-from werkzeug.security import generate_password_hash
+from flask import Blueprint, abort, render_template, session, redirect, url_for, flash, request, make_response, current_app
+from utils.passwords import hash_password
 from utils.decorators import requer_autenticacao, requer_perfil
-from repositories import admin_repository, auth_repository
+from repositories import admin_repository, auth_repository, rbac_repository
 from db import obter_configuracao_global
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
@@ -174,7 +174,7 @@ def admin_novo_usuario():
                 else:
                     senha_provisoria = secrets.token_urlsafe(18)
                     login_gerado = admin_repository.cadastrar_usuario_manual(
-                        nome, matricula, tipo, generate_password_hash(senha_provisoria), str(uuid.uuid4()),
+                        nome, matricula, tipo, hash_password(senha_provisoria), str(uuid.uuid4()),
                         request.form.getlist('cursos_ids'), parse_supervision_pairs(request.form.getlist('supervisoes')) if tipo == 'professor' else [],
                         request.form.getlist('inscricoes_ids'), request.form.get('edicao') or None
                     )
@@ -227,7 +227,7 @@ def editar_usuario(id_usuario):
                 supervisoes=parse_supervision_pairs(form_data.getlist('supervisoes')) if usuario['tipo'] == 'professor' else [],
                 inscricoes_ids=form_data.getlist('inscricoes_ids'),
                 id_edicao=form_data.get('edicao') or None,
-                senha_provisoria_hash=generate_password_hash(senha_provisoria) if senha_provisoria else None,
+                senha_provisoria_hash=hash_password(senha_provisoria) if senha_provisoria else None,
                 identificador=identificador_valor
             )
             if senha_provisoria:
@@ -265,6 +265,34 @@ def editar_usuario(id_usuario):
         form_data=form_data
     )
         
+@admin_bp.route('/usuario/<int:id_usuario>/permissoes', methods=['GET', 'POST'])
+@requer_autenticacao
+@requer_perfil('admin')
+def admin_permissoes_usuario(id_usuario):
+    if id_usuario == session['usuario_id']:
+        abort(403)
+    usuario = admin_repository.obter_usuario_admin(id_usuario)
+    if usuario is None:
+        abort(404)
+
+    if request.method == 'POST':
+        opcoes = {'padrao': None, 'permitir': True, 'negar': False}
+        escolha = request.form.get('escolha')
+        if escolha not in opcoes:
+            abort(400)
+        if not rbac_repository.definir_excecao(
+            id_usuario, request.form.get('permissao', ''), opcoes[escolha]
+        ):
+            abort(400)
+        flash("Permissão atualizada.", "sucesso")
+        return redirect(url_for('admin.admin_permissoes_usuario', id_usuario=id_usuario))
+
+    return render_template(
+        'admin_permissoes_usuario.html', usuario=usuario, id_usuario=id_usuario,
+        permissoes=rbac_repository.listar_permissoes_do_usuario(id_usuario),
+    )
+
+
 @admin_bp.route('/usuarios/toggle/<int:id>', methods=['POST'])
 @requer_autenticacao
 @requer_perfil('admin')

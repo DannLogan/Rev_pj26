@@ -15,7 +15,13 @@ def client(monkeypatch):
 
     app = create_app({"RATELIMIT_ENABLED": False})
     client = app.test_client()
-    usuario = {"tipo": "professor", "status_conta": "ativa", "senha": "hash-teste"}
+    usuario = {
+        "tipo": "professor", "status_conta": "ativa", "senha": "hash-teste",
+        "permissoes": [
+            "professor.professor_projeto.read", "professor.professor_scanner.read",
+            "professor.professor_exportar_csv.read", "professor.registrar_presenca.write",
+        ],
+    }
     monkeypatch.setattr(decorators, "buscar_estado_sessao", lambda _: usuario)
     with app.app_context(), client.session_transaction() as session:
         session.update(
@@ -40,6 +46,14 @@ def test_registro_exige_post_e_csrf(client):
     assert client.post(
         "/professor/projeto/3/curso/4/registrar", data={"qr_token": "qr-1"}
     ).status_code == 400
+
+
+def test_perfil_sem_permissao_de_exportacao_recebe_403(client, monkeypatch):
+    monkeypatch.setattr(decorators, "buscar_estado_sessao", lambda _: {
+        "tipo": "professor", "status_conta": "ativa", "senha": "hash-teste",
+        "permissoes": ["professor.professor_projeto.read"],
+    })
+    assert client.get("/professor/projeto/3/curso/4/exportar").status_code == 403
 
 
 def test_professor_sem_vinculo_nao_registra_presenca(client, monkeypatch):
