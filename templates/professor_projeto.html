@@ -25,7 +25,7 @@
     </div>
     
     <div class="col-12 col-sm-6">
-        <a href="{{ url_for('professor.professor_exportar_csv', projeto_id=projeto.id) }}" class="text-decoration-none">
+        <a href="{{ url_for('professor.professor_exportar_csv', projeto_id=projeto.id, formato='planilha') }}" class="text-decoration-none">
             <div class="card text-center p-4 bg-dark text-white shadow-sm h-100 d-flex flex-column justify-content-center align-items-center border-0 rounded-3">
                 <i class="bi bi-file-earmark-spreadsheet fs-1 mb-2"></i>
                 <span class="fw-bold fs-6 text-uppercase">Exportar Planilha CSV</span>

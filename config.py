@@ -18,7 +18,10 @@ class Config:
     SECRET_KEY = _required_secret_key()
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
-    SESSION_COOKIE_SECURE = os.environ.get("SESSION_COOKIE_SECURE", "false").lower() == "true"
+    SESSION_COOKIE_SECURE = os.environ.get("FLASK_ENV") == "production" or (
+        os.environ.get("SESSION_COOKIE_SECURE", "false").lower() == "true"
+    )
+    MAX_CONTENT_LENGTH = 3 * 1024 * 1024
     SESSION_REFRESH_EACH_REQUEST = True
     COMMON_SESSION_LIFETIME = timedelta(hours=1)
     ADMIN_SESSION_LIFETIME = timedelta(hours=8)

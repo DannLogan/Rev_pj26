@@ -18,6 +18,7 @@
         {% call ui.card() %}
             <form action="" method="POST" id="form-usuario">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="edicao" value="{{ id_edicao or '' }}">
                 {{ ui.campo_input(nome="nome", label="Nome Completo", valor=usuario.nome if usuario else form_data.get('nome', '')) }}
                 
                 <div class="mb-3">

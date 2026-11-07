@@ -1,4 +1,5 @@
 import csv
+from utils.csv_export import linha_para_planilha
 from flask import abort
 from io import StringIO
 from flask import Blueprint, render_template, session, redirect, url_for, flash, request, make_response, current_app
@@ -102,13 +103,14 @@ def professor_exportar_csv(projeto_id):
 
     for a in alunos:
         status = 'Presente' if a['presenca'] == 1 else 'Pendente'
-        escritor.writerow([
+        linha = [
             a['matricula'], 
             a['nome'], 
             a.get('nome_curso', 'Não Informado'), 
             a.get('nome_edicao', 'Não Informada'), 
             status
-        ])
+        ]
+        escritor.writerow(linha_para_planilha(linha) if request.args.get("formato") == "planilha" else linha)
 
     resposta = make_response('\ufeff' + saida.getvalue())
     nome_arquivo = f"chamada_{str(projeto['nome_projeto']).lower().replace(' ', '_')}.csv"

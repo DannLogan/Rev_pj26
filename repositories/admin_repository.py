@@ -1,7 +1,8 @@
 import uuid
 import secrets
-from db import obter_conexao, resolver_id_edicao
+from db import bloquear_edicao_ativa, obter_conexao, resolver_id_edicao
 from psycopg2 import IntegrityError
+from repositories.auth_repository import identificador_em_uso_no_cursor
 from werkzeug.security import generate_password_hash
 
 def obter_nome_edicao_ativa() -> str:
@@ -97,15 +98,25 @@ def salvar_projeto(nome: str, projeto_id: int = None) -> None:
         else:
             cursor.execute("INSERT INTO projetos (nome_projeto, ativo) VALUES (%s, 1)", (nome,))
 
-def alternar_status_projeto(id_projeto: int) -> str:
+def alternar_status_projeto(id_projeto: int, *, desativar: bool = False) -> str:
     with obter_conexao() as cursor:
-        cursor.execute("SELECT nome_projeto, ativo FROM projetos WHERE id = %s", (id_projeto,))
-        proj = cursor.fetchone()
-        if proj:
-            novo_status = 0 if proj['ativo'] == 1 else 1
-            cursor.execute("UPDATE projetos SET ativo = %s WHERE id = %s", (novo_status, id_projeto))
-            return proj['nome_projeto']
-    return None
+        edicao = resolver_id_edicao(cursor, bloquear_edicao_ativa(cursor))
+        cursor.execute("SELECT ativo FROM projetos WHERE id = %s FOR UPDATE", (id_projeto,))
+        projeto = cursor.fetchone()
+        if projeto is None:
+            return 'inexistente'
+        novo_status = 0 if desativar or projeto['ativo'] == 1 else 1
+        if novo_status == 0:
+            cursor.execute("""
+                SELECT 1 FROM inscricoes WHERE id_projeto = %s AND id_edicao = %s
+                UNION ALL SELECT 1 FROM supervisores_projeto WHERE id_projeto = %s
+                LIMIT 1
+            """, (id_projeto, edicao, id_projeto))
+            if cursor.fetchone():
+                return 'vinculado'
+        cursor.execute("UPDATE projetos SET ativo = %s WHERE id = %s", (novo_status, id_projeto))
+        return 'sucesso'
+
 
 def listar_projetos_ativos_por_edicao(id_edicao: any = None) -> list:
     """Retorna os projetos ativos globais protegendo contra parâmetros nulos ou sobressalentes."""
@@ -159,15 +170,34 @@ def listar_usuarios_painel_paginado(busca_matricula: str, tipo_filtro: str, letr
         
     return usuarios, total
 
+def bloquear_vinculos_edicao(cursor, id_edicao, projetos):
+    edicao_ativa = bloquear_edicao_ativa(cursor)
+    if edicao_ativa != id_edicao:
+        raise ValueError("A edição mudou. Reabra o formulário.")
+    edicao = resolver_id_edicao(cursor, edicao_ativa)
+    ids = sorted({int(projeto) for projeto in projetos if projeto})
+    if ids:
+        if edicao is None:
+            raise ValueError("Configure a edição ativa antes de vincular projetos.")
+        cursor.execute("""
+            SELECT id FROM projetos WHERE id = ANY(%s) AND ativo = 1
+            ORDER BY id FOR SHARE
+        """, (ids,))
+        if len(cursor.fetchall()) != len(ids):
+            raise ValueError("Um dos projetos selecionados está indisponível.")
+    return edicao
+
+
 def cadastrar_usuario_manual(nome: str, identificador: str, tipo: str, senha_hash: str, chave_unica: str, cursos: any, projetos: list, inscricoes: list, id_edicao: str) -> str:
     with obter_conexao() as cursor:
-        id_real_edicao = resolver_id_edicao(cursor, id_edicao)
+        id_real_edicao = bloquear_vinculos_edicao(cursor, id_edicao, inscricoes if tipo == "aluno" else projetos)
         
         # =====================================================================
         # FLUXO 1: CADASTRO DE ALUNO (Mantém a consistência original do RA)
         # =====================================================================
         if tipo == 'aluno':
-            # Cria o hash da própria matrícula informada
+            if identificador_em_uso_no_cursor(cursor, identificador):
+                raise ValueError('Identificador já está em uso.')
             senha_aluno_hash = senha_hash
             
             cursor.execute("""
@@ -211,6 +241,8 @@ def cadastrar_usuario_manual(nome: str, identificador: str, tipo: str, senha_has
                 num = cursor.fetchone()['numero']
                 id_corporativo_gerado = str(num).zfill(4)
 
+            if identificador_em_uso_no_cursor(cursor, id_corporativo_gerado):
+                raise ValueError('Identificador já está em uso. Tente novamente.')
             senha_colaborador_hash = senha_hash
 
             # 3. Insere o registro na tabela principal 'usuarios' usando o ID como login
@@ -244,7 +276,7 @@ def obter_lista_inscricoes_aluno(id_aluno: int, id_edicao: str) -> list:
 
 def atualizar_usuario_admin(id_usuario: int, nome: str, tipo: str, cursos_ids: any, projetos_ids: list, inscricoes_ids: list, id_edicao: str, senha_provisoria_hash: str | None, identificador: str) -> None:
     with obter_conexao() as cursor:
-        id_real_edicao = resolver_id_edicao(cursor, id_edicao)
+        id_real_edicao = bloquear_vinculos_edicao(cursor, id_edicao, inscricoes_ids if tipo == "aluno" else projetos_ids)
         
         cursor.execute("UPDATE usuarios SET nome = %s, tipo = %s WHERE id = %s", (nome, tipo, id_usuario))
         cursor.execute("DELETE FROM usuarios_cursos WHERE id_aluno = %s", (id_usuario,))
@@ -279,7 +311,7 @@ def atualizar_usuario_admin(id_usuario: int, nome: str, tipo: str, cursos_ids: a
             
             for p_id in selecionados:
                 if p_id not in atuais_dict:
-                    cursor.execute("INSERT INTO inscricoes (id_aluno, id_projeto, id_edicao, presenca) VALUES (%s, %s, %s, 0)", (id_usuario, p_id, id_real_edicao))
+                    cursor.execute("INSERT INTO inscricoes (id_aluno, id_projeto, id_edicao, presenca) VALUES (%s, %s, %s, 0) ON CONFLICT DO NOTHING", (id_usuario, p_id, id_real_edicao))
         
         elif tipo in ['professor', 'admin']:
             cursor.execute("""
@@ -357,29 +389,19 @@ def atualizar_edicao_ativa(nova_edicao: str) -> str:
         
         return 'sucesso'
 
-def verificar_vinculos_projeto(id_projeto: int, id_edicao_ativa: str) -> bool:
-    """Retorna True se o projeto tiver qualquer aluno inscrito ou professor supervisor neste ciclo."""
+def listar_projetos_com_vinculos(id_edicao_ativa: str) -> list:
     with obter_conexao() as cursor:
-        id_real_edicao = resolver_id_edicao(cursor, id_edicao_ativa)
-        
-        sql = """
-            SELECT EXISTS (
-                -- Cenário A: Verifica se existem alunos inscritos neste projeto para a edição atual
-                SELECT 1 FROM inscricoes 
-                WHERE id_projeto = %s AND id_edicao = %s
-                
-                UNION ALL
-                
-                -- Cenário B: Verifica se existem professores orientando este projeto
-                SELECT 1 FROM supervisores_projeto 
-                WHERE id_projeto = %s
-            ) AS possui_vinculo;
-        """
-        
-        cursor.execute(sql, (id_projeto, id_real_edicao, id_projeto))
-        resultado = cursor.fetchone()
-        return resultado['possui_vinculo'] if resultado else False    
-    
+        edicao = resolver_id_edicao(cursor, id_edicao_ativa)
+        cursor.execute("""
+            SELECT p.*, EXISTS (
+                SELECT 1 FROM inscricoes WHERE id_projeto = p.id AND id_edicao = %s
+                UNION ALL SELECT 1 FROM supervisores_projeto WHERE id_projeto = p.id
+            ) AS possui_vinculos
+            FROM projetos p ORDER BY p.ativo DESC, p.nome_projeto
+        """, (edicao,))
+        return cursor.fetchall()
+
+
 def processar_importacao_csv(linhas: list, id_edicao: str) -> tuple:
     credenciais = []
     erros = 0
@@ -398,8 +420,7 @@ def processar_importacao_csv(linhas: list, id_edicao: str) -> tuple:
                 erros += 1
                 continue
 
-            cursor.execute("SELECT 1 FROM usuarios WHERE login = %s", (matricula,))
-            if cursor.fetchone():
+            if identificador_em_uso_no_cursor(cursor, matricula) or identificador_em_uso_no_cursor(cursor, email):
                 erros += 1
                 continue
 

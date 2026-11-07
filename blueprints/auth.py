@@ -69,44 +69,8 @@ def primeiro_acesso():
     if 'usuario_id' in session: 
         return redirect(url_for('auth.index'))
         
-    cursos = admin_repository.listar_todos_cursos()
+    return render_template('primeiro_acesso.html')
 
-    if request.method == 'POST':
-        form_data = request.form
-        matricula = form_data.get('matricula', '').strip()
-        login_form = form_data.get('login', '').strip().lower().replace(" ", "")
-        email = form_data.get('email', '').strip()
-        senha_real = form_data.get('senha', '') 
-        id_curso = form_data.get('curso') # 🚀 ALTERADO: Captura um único curso selecionado no dropdown
-
-        if len(senha_real) < 6:
-            flash("Erro de Segurança: A senha deve conter no mínimo 6 caracteres.", "erro")
-            return render_template('primeiro_acesso.html', cursos=cursos, form_data=form_data, erro_campo="senha")
-        
-        if not matricula.isdigit() or len(matricula) != 10:
-            flash("Erro de Validação: O RA/Matrícula deve conter exatamente 10 dígitos numéricos.", "erro")
-            return render_template('primeiro_acesso.html', cursos=cursos, form_data=form_data, erro_campo="matricula")
-
-        if not id_curso:
-            flash("Erro de Validação: Você deve selecionar um curso.", "erro")
-            return render_template('primeiro_acesso.html', cursos=cursos, form_data=form_data, erro_campo="curso")
-
-        conflito = auth_repository.verificar_duplicidade_cadastro(matricula, login_form, email)
-        if conflito:
-            flash(f"Este {conflito} já consta registrado no sistema!", "erro")
-            return render_template('primeiro_acesso.html', cursos=cursos, form_data=form_data, erro_campo=conflito)
-
-        # 🚀 ALTERADO: Enviando int(id_curso) em vez de request.form.getlist('curso')
-        auth_repository.cadastrar_primeiro_acesso_aluno(
-            matricula, login_form, form_data.get('nome', '').strip(), email,
-            senha_real, form_data.get('pergunta'), form_data.get('resposta', '').strip().lower(),
-            int(id_curso)
-        )
-        
-        flash("Cadastro realizado com sucesso! Faça login.", "sucesso")
-        return redirect(url_for('auth.login'))
-
-    return render_template('primeiro_acesso.html', cursos=cursos, form_data=request.form)
 
 @auth_bp.route('/concluir-cadastro', methods=['GET', 'POST'])
 @requer_autenticacao
@@ -119,6 +83,10 @@ def concluir_cadastro():
 
     if request.method == 'POST':
         form_data = request.form
+        if auth_repository.identificador_em_uso(form_data.get('email', '').strip(), usuario['id']):
+            flash("Este e-mail já está em uso.", "erro")
+            return redirect(request.path)
+
         senha_form = form_data.get('senha', '')
         id_curso = form_data.get('curso')
         
@@ -144,7 +112,7 @@ def concluir_cadastro():
         login_form = form_data.get('login', '').strip().lower().replace(" ", "")
         
         if usuario['status_conta'] == 'pendente' and login_form != usuario['login']:
-            if auth_repository.buscar_usuario_por_identificador(login_form):
+            if auth_repository.identificador_em_uso(login_form, usuario['id']):
                 flash("Este login único já está em uso.", "erro")
                 return render_template('concluir_cadastro.html', cursos=cursos, usuario=usuario, form_data=form_data, curso_atual_id=curso_atual_id)
             login_final = login_form
@@ -192,18 +160,25 @@ def editar_perfil():
     cursos_usuario = auth_repository.buscar_cursos_usuario(session['usuario_id']) if usuario['tipo'] == 'aluno' else []
     curso_usuario_id = cursos_usuario[0] if cursos_usuario else None
     
-    referer = request.referrer or ''
-    voltar_url = url_for('professor.professor_dashboard') if '/professor' in referer else url_for('admin.admin_painel') if '/admin' in referer else url_for('aluno.aluno_dashboard')
+    voltar_url = url_for({
+        'professor': 'professor.professor_dashboard',
+        'admin': 'admin.admin_painel',
+        'aluno': 'aluno.aluno_dashboard',
+    }.get(usuario['tipo'], 'auth.index'))
 
     if request.method == 'POST':
         form_data = request.form
+        if auth_repository.identificador_em_uso(form_data.get('email', '').strip(), usuario['id']):
+            flash("Este e-mail já está em uso.", "erro")
+            return redirect(request.path)
+
         login_form = form_data.get('matricula', '').strip().lower().replace(" ", "")
         id_curso = form_data.get('curso') 
         
-        voltar_url_post = form_data.get('voltar_url') or voltar_url
+        voltar_url_post = voltar_url
 
         if usuario['status_conta'] == 'pendente' and login_form != usuario['login']:
-            if auth_repository.buscar_usuario_por_identificador(login_form):
+            if auth_repository.identificador_em_uso(login_form, usuario['id']):
                 flash("Este login único já está em uso.", "erro")
                 return render_template('editar_perfil.html', usuario=usuario, cursos=cursos, curso_usuario_id=curso_usuario_id, voltar_url=voltar_url_post, form_data=form_data)
             login_final = login_form

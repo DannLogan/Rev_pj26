@@ -52,8 +52,11 @@ class Professor(HttpUser):
     def registrar_presenca(self):
         with self.client.post(f"{self.project}/registrar", name="/professor/projeto/:id/registrar",
                               data={**self.scanner_fields, "qr_token": self.qr_token},
-                              allow_redirects=False, catch_response=True) as response:
-            if response.status_code != 302 or response.headers.get("Location") != self.project:
+                              catch_response=True) as response:
+            if response.status_code != 200 or not any(
+                mensagem in response.text
+                for mensagem in ("computada com sucesso!", "já havia sido registrada anteriormente.")
+            ):
                 response.failure("Registro rejeitado")
 
     @task

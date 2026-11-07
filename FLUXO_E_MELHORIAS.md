@@ -58,3 +58,12 @@ A recuperação automática exigiria um canal institucional verificado. A recupe
 3. Faça a validação funcional com um professor vinculado, um professor sem acesso, um aluno inscrito e um administrador. Teste a leitura duplicada, a troca de edição com scanner aberto, a redefinição de senha, o CSV e a exportação.
 4. Registre a linha de base do teste de carga. O resolvedor central de edição passou a fazer uma única consulta, inclusive no fallback por nome. A decisão sobre pooling e índices depende dos resultados reais.
 5. Publique aplicativo e templates juntos. Para rollback, restaure o artefato anterior completo e verifique saúde, login e scanner. A implantação deste lote dispensa migração do banco.
+
+## Fechamento da revisão
+
+- O primeiro acesso depende de provisionamento administrativo. A página pública orienta o usuário e não cria contas. O retorno da edição de perfil é escolhido no servidor.
+- O login rejeita identificadores ambíguos. O provisionamento e a atualização de perfil verificam colisões entre identificadores existentes. Em homologação, identifique e corrija colisões antigas antes da publicação.
+- As alterações de vínculos administrativos validam a edição exibida no formulário. Desativação e vinculação de projetos usam bloqueios compatíveis no PostgreSQL. A listagem administrativa consulta os vínculos em lote.
+- Os botões de exportação solicitam o modo planilha, que trata prefixos de fórmulas. O endpoint sem o parâmetro preserva o CSV legado. Ao importar em planilha, selecione texto para a coluna de matrícula para preservar zeros à esquerda.
+- O aplicativo limita a requisição a 3 MiB e o arquivo CSV a 2 MiB e 5.000 registros. O cabeçalho é reconhecido pelo primeiro campo. No ambiente com FLASK_ENV=production, o cookie de sessão usa Secure.
+- O Locust verifica a confirmação após seguir o redirecionamento. A execução com dados representativos continua necessária antes de dimensionar índices ou pooling.
