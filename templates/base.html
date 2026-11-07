@@ -9,92 +9,6 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/estilo.css') }}">
     
-    <style>
-        :root {
-            --cor-primaria: #1C4E3D; 
-            --cor-secundaria: #4EB09B; 
-            --cor-acao: #E86B35; 
-            --cor-fundo: #F4F6F8; 
-        }
-        body { 
-            background-color: var(--cor-fundo); 
-            min-height: 100vh; 
-            display: flex; 
-            flex-direction: column; 
-            font-family: 'Segoe UI', system-ui, sans-serif; 
-            overflow-x: hidden;
-        }
-        .bg-primario-evento { background-color: var(--cor-primaria) !important; }
-        .text-primario-evento { color: var(--cor-primaria) !important; }
-        .btn-acao-evento { background-color: var(--cor-acao) !important; color: white !important; border: none; }
-        .btn-acao-evento:hover { filter: brightness(1.1); }
-        
-        .wrapper { 
-            display: flex; 
-            width: 100%; 
-            align-items: stretch; 
-            position: relative;
-        }
-        
-        /* Regra base padrão para o conteúdo principal (Mobile First) */
-        #main-content { 
-            width: 100%; 
-            min-height: 100vh; 
-            display: flex; 
-            flex-direction: column; 
-            transition: all 0.3s ease;
-        }
-        
-        /* ==========================================================================
-           REGRAS DE RESPONSIVIDADE (MEDIA QUERIES)
-           ========================================================================== */
-        
-        /* 🖥️ CONFIGURAÇÃO PARA TELAS GRANDES (DESKTOP E TABLETS) */
-        @media (min-width: 768px) {
-            /* Aplica o recuo na tabela para não ficar embaixo da barra fixa */
-            .wrapper.com-sidebar #main-content {
-                width: calc(100% - 292px);
-                margin-left: 292px;
-            }
-            
-            /* Transforma o menu offcanvas em uma Janela Flutuante Premium fixa */
-            .wrapper.com-sidebar #sidebarMenu {
-                position: fixed !important;
-                top: 16px !important;
-                left: 0 !important;
-                bottom: 16px !important;
-                height: calc(100vh - 32px) !important;
-                
-                /* Design Estilo Janela Solta */
-                margin: 16px !important;
-                border-radius: 16px !important;
-                box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15) !important;
-                
-                /* Força o menu a ficar aberto permanentemente no desktop */
-                transform: none !important;
-                visibility: visible !important;
-            }
-        }
-        
-        /* 📱 CONFIGURAÇÃO PARA TELAS PEQUENAS (CELULARES) */
-        @media (max-width: 767.98px) {
-            #sidebarMenu {
-                /* Remove as margens e bordas para o menu ocupar o celular todo ao ser puxado */
-                margin: 0 !important;
-                border-radius: 0 !important;
-                height: 100dvh !important;
-                max-height: 100dvh !important;
-            }
-        }
-        
-        .card { border: none; border-radius: 12px; }
-        .animate-fade-in { animation: fadeIn 0.3s ease-in-out; }
-        
-        @keyframes fadeIn { 
-            from { opacity: 0; transform: translateY(8px); } 
-            to { opacity: 1; transform: translateY(0); } 
-        }
-    </style>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/portal.css') }}">
     <script>
         try {
@@ -107,41 +21,39 @@
 <body>
 
     {% include 'componentes/_alertas.html' %}
-    <div class="portal-tools">
-        <button type="button" class="btn btn-outline-secondary" id="portal-theme">Alternar tema</button>
-        {% if session.get('tipo') %}
-        <button type="button" class="btn btn-outline-secondary" id="portal-search-button">Buscar páginas <kbd>Ctrl K</kbd></button>
-        <dialog id="portal-search" aria-label="Buscar páginas">
-            <form method="dialog"><button class="btn btn-outline-secondary mb-3">Fechar</button></form>
-            <input type="search" class="form-control" aria-label="Filtrar páginas" placeholder="Filtrar páginas" autofocus>
-            <ul class="list-unstyled mt-3 mb-0"></ul>
-        </dialog>
+    {% set tem_menu = session.get('tipo') and request.endpoint != 'auth.concluir_cadastro' %}
+    <div class="wrapper {{ 'com-sidebar' if tem_menu else 'portal-public' }}">
+        {% if tem_menu %}
+            {% block sidebar %}{% include 'componentes/_sidebar.html' %}{% endblock %}
         {% endif %}
-    </div>
-    <script src="{{ url_for('static', filename='css/js/portal.js') }}" defer></script>
-
-    <div class="wrapper {% if session.get('tipo') %}com-sidebar{% endif %}">
-        {% if session.get('tipo') %}
-            {% block sidebar %}
-                {% include 'componentes/_sidebar.html' %}
-            {% endblock %}
-        {% endif %}
-
         <div id="main-content">
-            {% if session.get('tipo') %}
-                {% block navbar %}
-                    {% include 'componentes/_navbar.html' %}
-                {% endblock %}
-            {% endif %}
-
-            <main class="container-fluid p-4 flex-grow-1">
-                <div class="animate-fade-in">
-                    {% block content %}{% endblock %}
+            <header class="portal-topbar">
+                {% if session.get('tipo') %}
+                    {% block navbar %}{% include 'componentes/_navbar.html' %}{% endblock %}
+                {% endif %}
+                <div class="portal-tools">
+                    <button type="button" class="btn portal-tool" id="portal-theme" aria-label="Alternar tema" title="Alternar tema">
+                        <i class="bi bi-circle-half" aria-hidden="true"></i>
+                    </button>
+                    {% if tem_menu %}
+                    <button type="button" class="btn portal-tool" id="portal-search-button" aria-label="Buscar páginas">
+                        <i class="bi bi-search" aria-hidden="true"></i><span class="d-none d-sm-inline">Buscar</span><kbd class="d-none d-sm-inline">Ctrl K</kbd>
+                    </button>
+                    <dialog id="portal-search" aria-label="Buscar páginas">
+                        <form method="dialog"><button class="btn btn-outline-secondary mb-3">Fechar</button></form>
+                        <input type="search" class="form-control" aria-label="Filtrar páginas" placeholder="Filtrar páginas" autofocus>
+                        <ul class="list-unstyled mt-3 mb-0"></ul>
+                    </dialog>
+                    {% endif %}
                 </div>
+            </header>
+            <main class="portal-main">
+                {% block content %}{% endblock %}
             </main>
         </div>
     </div>
-    
+    <script src="{{ url_for('static', filename='css/js/portal.js') }}" defer></script>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{{ url_for('static', filename='css/js/main.js') }}?v=1.1"></script>
 

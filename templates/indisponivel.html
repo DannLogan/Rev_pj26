@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+{% block title %}Portal temporariamente indisponível{% endblock %}
+{% block content %}
+<section class="portal-empty">
+    <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
+    <div>
+        <h1 class="h4">Portal temporariamente indisponível</h1>
+        <p class="portal-muted">Não foi possível consultar o banco de dados. Aguarde um momento e tente novamente.</p>
+        <a href="{{ url_for('auth.index') }}" class="btn btn-acao-evento">Tentar novamente</a>
+    </div>
+</section>
+{% endblock %}

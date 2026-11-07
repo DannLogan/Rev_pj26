@@ -1,21 +1,7 @@
-<nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom px-4 py-3 shadow-sm">
-    <div class="container-fluid p-0 d-flex align-items-center">
-        
-        <button class="btn btn-outline-dark d-md-none me-3" 
-                type="button" 
-                data-bs-toggle="offcanvas" 
-                data-bs-target="#sidebarMenu" 
-                aria-controls="sidebarMenu">
-            <i class="bi bi-list fs-4"></i>
-        </button>
-        
-        <span class="navbar-text fw-bold text-dark fs-5 text-truncate me-auto">
-            Olá, <span class="text-primary">{{ session.get('nome', 'Usuário') }}</span>
-        </span>
-        
-        <div class="d-flex align-items-center">
-            {% block navbar_botoes %}{% endblock %}
-        </div>
-        
-    </div>
-</nav>
+<div class="portal-context">
+    <button class="btn portal-tool d-md-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarMenu" aria-controls="sidebarMenu" aria-label="Abrir menu">
+        <i class="bi bi-list" aria-hidden="true"></i>
+    </button>
+    <span>Portal Simpósio</span>
+    {% block navbar_botoes %}{% endblock %}
+</div>

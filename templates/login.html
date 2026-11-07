@@ -1,30 +1,43 @@
 {% extends 'base.html' %}
-{% import 'componentes/macros.html' as ui %}
-
-{% block title %}Login - Portal Simpósio{% endblock %}
-
+{% block title %}Entrar · Portal Simpósio{% endblock %}
 {% block content %}
 <div class="portal-login">
-    <header class="portal-intro">
-        <i class="bi bi-qr-code" aria-hidden="true"></i>
-        <h1>Portal Simpósio</h1>
-        <p>Inscrições, credenciais e presença nas atividades do simpósio.</p>
-    </header>
-    <div>
-        {% call ui.card(titulo="Acesso ao Sistema", icone="lock-fill") %}
-            <form action="{{ url_for('auth.login') }}" method="POST" data-login-form>
+    <section class="portal-intro" aria-labelledby="portal-login-title">
+        <div class="portal-brand">
+            <span class="portal-mark"><i class="bi bi-qr-code" aria-hidden="true"></i></span>
+            <span>Portal Simpósio<small>Frequência acadêmica</small></span>
+        </div>
+        <div>
+            <h1 id="portal-login-title">Da inscrição à presença</h1>
+            <p>Acesse suas atividades, apresente sua credencial ou registre a chamada do simpósio.</p>
+        </div>
+        <div class="portal-credential" aria-hidden="true">
+            <i class="bi bi-qr-code"></i>
+            <div><small>Simpósio</small><strong>Credencial do participante</strong></div>
+        </div>
+    </section>
+    <section class="portal-login-panel" aria-labelledby="portal-signin-title">
+        <div class="portal-login-form">
+            <h2 id="portal-signin-title">Entrar no portal</h2>
+            <p class="portal-muted mb-4">Use os dados da sua conta do simpósio.</p>
+            <form action="{{ url_for('auth.login') }}" method="post" data-login-form>
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                {{ ui.campo_input(nome="matricula", label="Matrícula, Login ou RA", placeholder="Digite seu acesso") }}
-                {{ ui.campo_input(nome="senha", label="Senha", tipo="password", placeholder="••••••••") }}
-                
-                {{ ui.botao(texto="Entrar", tipo="submit", estilo="acao-evento w-100 py-2 fs-5 fw-bold mt-2") }}
+                <div class="mb-3">
+                    <label for="matricula" class="form-label">Identificador</label>
+                    <input id="matricula" name="matricula" class="form-control" autocomplete="username" required aria-describedby="portal-login-hint">
+                    <small id="portal-login-hint" class="portal-muted">E-mail, matrícula, ID corporativo ou login</small>
+                </div>
+                <div class="mb-4">
+                    <label for="senha" class="form-label">Senha</label>
+                    <input id="senha" name="senha" type="password" class="form-control" autocomplete="current-password" required>
+                </div>
+                <button type="submit" class="btn btn-acao-evento w-100">Entrar <i class="bi bi-arrow-right" aria-hidden="true"></i></button>
             </form>
-            
-            <div class="text-center mt-4 pt-2 border-top">
-                <p class="mb-1">Esqueceu sua senha? <a href="{{ url_for('auth.recuperar_senha') }}" class="text-primario-evento fw-bold text-decoration-none">Recuperar</a></p>
-                <p class="mb-0 mt-2"><a href="{{ url_for('auth.primeiro_acesso') }}" class="text-danger fw-bold text-decoration-none">Como obter o primeiro acesso</a></p>
+            <div class="portal-login-links">
+                <a href="{{ url_for('auth.recuperar_senha') }}">Recuperar acesso</a>
+                <a href="{{ url_for('auth.primeiro_acesso') }}">Primeiro acesso</a>
             </div>
-        {% endcall %}
-    </div>
+        </div>
+    </section>
 </div>
 {% endblock %}

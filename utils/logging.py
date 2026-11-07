@@ -5,6 +5,25 @@ from time import perf_counter
 from uuid import uuid4
 
 from flask import g, has_request_context, request
+from psycopg2 import OperationalError
+
+
+def database_error_category(error):
+    state = error.pgcode
+    detail = str(error).lower()
+    if (state and state.startswith("28")) or "authentication failed" in detail:
+        return "authentication"
+    if "tenant or user not found" in detail:
+        return "pooler_user"
+    if "could not translate host name" in detail:
+        return "dns"
+    if "ssl" in detail or "certificate" in detail:
+        return "tls"
+    if "timeout" in detail or "timed out" in detail:
+        return "timeout"
+    if "network is unreachable" in detail or "connection refused" in detail:
+        return "network"
+    return "other"
 
 
 class JsonFormatter(logging.Formatter):
@@ -24,6 +43,9 @@ class JsonFormatter(logging.Formatter):
                 entry[field] = getattr(record, field)
         if record.exc_info:
             entry["error_type"] = record.exc_info[0].__name__
+            error = record.exc_info[1]
+            if isinstance(error, OperationalError):
+                entry["database_error"] = database_error_category(error)
         return json.dumps(entry, ensure_ascii=False)
 
 
