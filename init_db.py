@@ -70,36 +70,37 @@ def inicializar_novo_banco_normalizado():
         );
 
         CREATE TABLE IF NOT EXISTS alunos (
-            id_usuario INTEGER NOT NULL PRIMARY KEY REFERENCES usuarios(id) ON DELETE CASCADE,
+            id_usuario INTEGER NOT NULL PRIMARY KEY REFERENCES usuarios(id),
             matricula TEXT NOT NULL UNIQUE,
             origem_cadastro TEXT,
-            qr_token CHARACTER VARYING(255)
+            qr_token CHARACTER VARYING(255) UNIQUE
         );
 
         CREATE TABLE IF NOT EXISTS professores (
-            id_usuario INTEGER NOT NULL PRIMARY KEY REFERENCES usuarios(id) ON DELETE CASCADE,
+            id_usuario INTEGER NOT NULL PRIMARY KEY REFERENCES usuarios(id),
             id_corporativo TEXT UNIQUE
         );
 
         -- 🚀 TRAVA UNIQUE AQUI: Garante o modelo de Curso Único por Aluno
         CREATE TABLE IF NOT EXISTS usuarios_cursos (
-            id_aluno INTEGER NOT NULL PRIMARY KEY REFERENCES usuarios(id) ON DELETE CASCADE,
-            id_curso INTEGER NOT NULL REFERENCES cursos(id) ON DELETE CASCADE,
+            id_aluno INTEGER NOT NULL REFERENCES usuarios(id),
+            id_curso INTEGER NOT NULL REFERENCES cursos(id),
+            PRIMARY KEY (id_aluno, id_curso),
             CONSTRAINT unique_aluno_curso UNIQUE (id_aluno)
         );
 
         CREATE TABLE IF NOT EXISTS supervisores_projeto (
-            id_professor INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
-            id_projeto INTEGER NOT NULL REFERENCES projetos(id) ON DELETE CASCADE,
+            id_professor INTEGER NOT NULL REFERENCES usuarios(id),
+            id_projeto INTEGER NOT NULL REFERENCES projetos(id),
             PRIMARY KEY (id_professor, id_projeto)
         );
 
         -- 🚀 TIMESTAMP DEFAULT: O banco calcula a data de inscrição automaticamente
         CREATE TABLE IF NOT EXISTS inscricoes (
-            id_aluno INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
-            id_projeto INTEGER NOT NULL REFERENCES projetos(id) ON DELETE CASCADE,
-            id_edicao INTEGER NOT NULL REFERENCES edicoes(id) ON DELETE CASCADE,
-            presenca INTEGER DEFAULT 0,
+            id_aluno INTEGER NOT NULL REFERENCES usuarios(id),
+            id_projeto INTEGER NOT NULL REFERENCES projetos(id),
+            id_edicao INTEGER NOT NULL REFERENCES edicoes(id),
+            presenca INTEGER DEFAULT 0 CHECK (presenca IN (0, 1)),
             data_inscricao TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id_aluno, id_projeto, id_edicao)
         );

@@ -2,7 +2,7 @@
     {% if mensagens %}
         <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1080;">
             {% for categoria, mensagem in mensagens %}
-                <div class="alert alert-{% if categoria == 'erro' %}danger{% elif categoria == 'sucesso' %}success{% else %}info{% endif %} alert-dismissible fade show shadow animate-fade-in" role="alert">
+                <div class="alert alert-{% if categoria == 'erro' %}danger{% elif categoria == 'sucesso' %}success{% else %}info{% endif %} alert-dismissible fade show shadow animate-fade-in" role="alert"{% if request.endpoint == 'auth.login' and categoria == 'erro' %} data-persistent{% endif %}>
                     <i class="bi {% if categoria == 'erro' %}bi-exclamation-triangle-fill{% elif categoria == 'sucesso' %}bi-check-circle-fill{% else %}bi-info-circle-fill{% endif %} me-2"></i>
                     
                     {{ mensagem }}
@@ -30,7 +30,7 @@
 
                 // 2. Sumir automaticamente após 4 segundos com efeito suave
                 setTimeout(function() {
-                    document.querySelectorAll('.toast-container .alert').forEach(function(caixaAlerta) {
+                    document.querySelectorAll('.toast-container .alert:not([data-persistent])').forEach(function(caixaAlerta) {
                         caixaAlerta.style.transition = 'opacity 0.4s ease';
                         caixaAlerta.style.opacity = '0';
                         setTimeout(function() { caixaAlerta.remove(); }, 400);

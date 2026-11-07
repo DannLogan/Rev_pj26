@@ -4,15 +4,20 @@
 {% block title %}Login - Portal Simpósio{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center align-items-center" style="min-height: 75vh;">
-    <div class="col-12 col-sm-8 col-md-6 col-lg-4">
+<div class="portal-login">
+    <header class="portal-intro">
+        <i class="bi bi-qr-code" aria-hidden="true"></i>
+        <h1>Portal Simpósio</h1>
+        <p>Inscrições, credenciais e presença nas atividades do simpósio.</p>
+    </header>
+    <div>
         {% call ui.card(titulo="Acesso ao Sistema", icone="lock-fill") %}
-            <form action="{{ url_for('auth.login') }}" method="POST">
+            <form action="{{ url_for('auth.login') }}" method="POST" data-login-form>
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 {{ ui.campo_input(nome="matricula", label="Matrícula, Login ou RA", placeholder="Digite seu acesso") }}
                 {{ ui.campo_input(nome="senha", label="Senha", tipo="password", placeholder="••••••••") }}
                 
-                {{ ui.botao(texto="ACESSAR", tipo="submit", estilo="acao-evento w-100 py-2 fs-5 fw-bold mt-2") }}
+                {{ ui.botao(texto="Entrar", tipo="submit", estilo="acao-evento w-100 py-2 fs-5 fw-bold mt-2") }}
             </form>
             
             <div class="text-center mt-4 pt-2 border-top">

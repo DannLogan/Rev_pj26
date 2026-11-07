@@ -6,7 +6,7 @@ document.addEventListener("DOMContentLoaded", function() {
     // 1. FECHAMENTO AUTOMÁTICO DE ALERTAS (Failsafe Puro)
     // ==============================================================================
     setTimeout(function() {
-        const alertas = document.querySelectorAll('.alert');
+        const alertas = document.querySelectorAll('.alert:not([data-persistent])');
         alertas.forEach(function(alerta) {
             alerta.style.transition = 'opacity 0.4s ease';
             alerta.style.opacity = '0';
@@ -33,6 +33,7 @@ document.addEventListener("DOMContentLoaded", function() {
     // ==============================================================================
     const camposMatricula = document.querySelectorAll('input[name="busca_matricula"], input[name="matricula"], #input-matricula');
     camposMatricula.forEach(function(input) {
+        if (input.form?.dataset.loginForm !== undefined) return;
         input.setAttribute('inputmode', 'numeric');
         input.setAttribute('pattern', '\\d*');
 

@@ -67,3 +67,73 @@ A recuperação automática exigiria um canal institucional verificado. A recupe
 - Os botões de exportação solicitam o modo planilha, que trata prefixos de fórmulas. O endpoint sem o parâmetro preserva o CSV legado. Ao importar em planilha, selecione texto para a coluna de matrícula para preservar zeros à esquerda.
 - O aplicativo limita a requisição a 3 MiB e o arquivo CSV a 2 MiB e 5.000 registros. O cabeçalho é reconhecido pelo primeiro campo. No ambiente com FLASK_ENV=production, o cookie de sessão usa Secure.
 - O Locust verifica a confirmação após seguir o redirecionamento. A execução com dados representativos continua necessária antes de dimensionar índices ou pooling.
+
+## Especificação de dados e auditoria Supabase
+
+A referência abaixo foi extraída de init_db.py. Compare com o catálogo do projeto antes de preparar uma migração. A API de dados apresenta apenas os objetos expostos e não substitui o catálogo PostgreSQL. A sessão de desenvolvimento não resolveu o host do projeto, então o catálogo remoto ainda não foi verificado.
+
+| Entidade | Contrato atual | Regra a verificar |
+|---|---|---|
+| usuarios | Identificador inteiro, perfil e estado textuais, senha em hash | Contas ativas com perfil válido, identificadores de login sem ambiguidade e exposição de colunas sensíveis restrita ao servidor |
+| alunos e professores | Vínculo por id_usuario, matrícula e ID corporativo textuais | Subtipo correspondente ao perfil, zeros à esquerda preservados, tokens QR sem duplicidade |
+| usuarios_cursos | Uma linha por aluno | Vínculo de aluno e curso válido, política explícita para cursos inativos |
+| inscricoes | Chave por aluno, projeto e edição, presença inteira | Estados 0 e 1, inscrição válida, confirmação idempotente e histórico preservado |
+| supervisores_projeto | Chave por professor e projeto | Apenas perfis autorizados, regra documentada para remoção de vínculos na troca de ciclo |
+| edicoes e configuracoes | Edição ativa em valor textual | Exatamente uma configuração, referência resolvível, títulos duplicados inventariados |
+
+### Coleta somente leitura
+
+Execute no SQL Editor e compartilhe apenas o resultado estrutural. Consultas agregadas de qualidade devem retornar contagens, sem matrículas, e-mails, hashes ou tokens.
+
+```sql
+begin read only;
+
+select table_name, ordinal_position, column_name, data_type,
+       character_maximum_length, is_nullable, column_default
+from information_schema.columns
+where table_schema = 'public'
+order by table_name, ordinal_position;
+
+select c.relname as tabela, con.conname, con.convalidated,
+       pg_get_constraintdef(con.oid) as definicao
+from pg_constraint con
+join pg_class c on c.oid = con.conrelid
+join pg_namespace n on n.oid = c.relnamespace
+where n.nspname = 'public'
+order by 1, 2;
+
+select tablename, indexname, indexdef from pg_indexes
+where schemaname = 'public' order by 1, 2;
+
+select tablename, rowsecurity from pg_tables
+where schemaname = 'public' order by 1;
+
+select tablename, policyname, roles, cmd, qual, with_check from pg_policies
+where schemaname = 'public' order by 1, 2;
+
+select grantee, table_name, privilege_type from information_schema.table_privileges
+where table_schema = 'public' order by 1, 2, 3;
+
+select event_object_table, trigger_name, action_timing, event_manipulation
+from information_schema.triggers where trigger_schema = 'public'
+order by 1, 2, 4;
+
+rollback;
+```
+
+### Tratamento, segurança e implantação
+
+1. Inventariar contagens de perfis inválidos, subtipos divergentes, presença fora de 0/1, tokens duplicados, identificadores compartilhados, vínculos com objetos inativos e edição sem referência. Registrar exemplos apenas em ambiente controlado e com dados mascarados.
+2. Definir normalização por campo. Identificadores permanecem texto. Espaços, comparação de e-mail e distinção entre vazio e nulo devem ter comportamento consistente nos fluxos de login, importação e atualização. Rejeitar entradas ambíguas antes de persistir. Preservar a ordem, codificação e valores do CSV legado.
+3. Confirmar consumidores REST, GraphQL e RPC. Se o backend for o único consumidor e usar PostgreSQL diretamente, planejar a desativação da Data API. Se houver consumidores, restringir os grants e validar RLS por papel com testes de leitura e escrita. Usar uma role de aplicação separada da role de migração e manter as credenciais no ambiente.
+4. Ensaiar correções numa cópia mascarada. Reconciliar conflitos com a administração antes de corrigir registros. Depois de limpar e medir, propor constraints e índices em alterações separadas, com validação gradual e rollback. Preservar nomes, tipos, chaves de integração e o histórico.
+5. Validar a concorrência entre inscrição, confirmação, cancelamento e troca de edição. Medir consultas por QR e relatório por projeto e edição com EXPLAIN antes de decidir índices. Verificar também a restauração de backup e a ausência de credenciais, tokens e dados pessoais em logs e relatórios de auditoria.
+
+Execute docs/auditoria-supabase.sql no SQL Editor do projeto para coletar inventario, exposicao de leitura e contagens de inconsistencias. O script usa um snapshot somente leitura, com limite de tempo. Uma falha de schema ou permissao exige reconciliar o catalogo antes de interpretar as contagens. A consulta de grants e RLS no bloco acima continua necessaria para verificar politicas e acessos de escrita.
+
+### Integridade aplicada no Supabase
+
+- O SQL em `docs/integridade-postgres.sql` consolida as restrições aplicadas ao banco legado. Use-o somente em uma cópia do esquema anterior às migrações. Bancos novos recebem as restrições no `init_db.py`.
+- As chaves estrangeiras protegem os vínculos contra exclusões em cascata. A matrícula, o login, o identificador corporativo e o QR têm unicidade por coluna. A confirmação continua única por aluno, projeto e edição. O campo `presenca` aceita 0, 1 e o nulo do contrato legado.
+- A Data API pode permanecer habilitada. Os papéis `anon` e `authenticated` tiveram os privilégios sobre as dez tabelas revogados. O Flask conecta por PostgreSQL e deve usar uma credencial com os privilégios necessários no servidor.
+- Colisões entre campos de contas diferentes exigem que a administração confirme a titularidade antes de alterar os identificadores. O login rejeita um valor que corresponda a mais de uma conta ativa.

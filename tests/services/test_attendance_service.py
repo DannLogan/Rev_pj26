@@ -54,3 +54,11 @@ def test_qr_inexistente_e_rejeitado():
 
     with pytest.raises(ValueError, match="QR code inválido"):
         AttendanceService(repository).register_from_qr("unknown", 3, 9, 12)
+
+
+@pytest.mark.parametrize("token", ["", "x" * 256])
+def test_qr_fora_do_contrato_e_rejeitado_antes_da_consulta(token):
+    service = AttendanceService(repository=None)
+
+    with pytest.raises(ValueError, match="QR code"):
+        service.register_from_qr(token, 3, 9, 12)

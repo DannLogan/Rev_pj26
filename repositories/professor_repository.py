@@ -6,10 +6,12 @@ def buscar_aluno_por_qr_token(qr_token: str) -> dict:
         FROM usuarios u
         JOIN alunos a ON u.id = a.id_usuario
         WHERE a.qr_token = %s AND u.tipo = 'aluno' AND u.ativo = 1
+        LIMIT 2
     """
     with obter_conexao() as cursor:
         cursor.execute(sql, (qr_token,))
-        return cursor.fetchone()
+        alunos = cursor.fetchall()
+        return alunos[0] if len(alunos) == 1 else None
     
 def obter_projetos_supervisor(id_professor: int, id_edicao_ativa: str) -> list:
     sql = """

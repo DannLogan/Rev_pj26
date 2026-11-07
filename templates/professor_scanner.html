@@ -18,7 +18,8 @@
         {% call ui.card() %}
             <div class="p-3 border border-dashed rounded bg-light text-center">
                 <div id="reader" class="mx-auto rounded border bg-white mb-3" style="width: 100%; max-width: 340px;"></div>
-                <p id="status-scan" class="fw-bold mb-0 text-secondary">Aponte a câmera para a credencial do aluno.</p>
+                <p id="status-scan" role="status" class="fw-bold mb-0 text-secondary">Aponte a câmera para a credencial do aluno.</p>
+                <button id="retry-scan" type="button" class="btn btn-outline-secondary mt-3" hidden>Tentar novamente</button>
             </div>
         {% endcall %}
     </div>
@@ -32,15 +33,38 @@
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        const html5QrCode = new Html5Qrcode("reader");
         const form = document.getElementById('registrar-presenca');
+        const status = document.getElementById('status-scan');
+        const retry = document.getElementById('retry-scan');
+        let scanner;
         let submitting = false;
-        html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, (decodedText) => {
-            if (submitting) return;
-            submitting = true;
-            form.elements.qr_token.value = decodedText;
-            form.submit();
-        }).catch(err => { console.error(err); });
+
+        async function startScanner() {
+            retry.hidden = true;
+            status.textContent = 'Iniciando câmera…';
+
+            try {
+                scanner ??= new Html5Qrcode('reader');
+                await scanner.start({ facingMode: 'environment' }, { fps: 10, qrbox: 250 }, (decodedText) => {
+                    if (submitting) return;
+                    if (!decodedText || decodedText.length > 255) {
+                        status.textContent = 'Credencial inválida. Aponte para o QR code do aluno.';
+                        return;
+                    }
+                    submitting = true;
+                    status.textContent = 'Registrando presença…';
+                    form.elements.qr_token.value = decodedText;
+                    form.submit();
+                });
+                if (!submitting) status.textContent = 'Aponte a câmera para a credencial do aluno.';
+            } catch {
+                status.textContent = 'Não foi possível iniciar o leitor. Confira a câmera, as permissões e a conexão.';
+                retry.hidden = false;
+            }
+        }
+
+        retry.addEventListener('click', startScanner);
+        startScanner();
     });
 </script>
 {% endblock %}
