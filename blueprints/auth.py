@@ -1,3 +1,5 @@
+from time import time
+from utils.security import marca_sessao
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash, current_app
 from werkzeug.security import check_password_hash
 from itsdangerous import URLSafeTimedSerializer
@@ -36,7 +38,16 @@ def login():
         usuario = auth_repository.buscar_usuario_por_identificador(identificador)
 
         if usuario and check_password_hash(usuario['senha'], senha):
+            identificadores = (usuario['login'], usuario['matricula'], usuario['id_corporativo'])
+            if (usuario['status_conta'] == 'pendente' and senha in identificadores) or (
+                usuario['tipo'] == 'admin' and usuario['login'] == 'admin' and senha == 'admin123'
+            ):
+                flash("Solicite uma nova credencial à administração.", "erro")
+                return render_template('login.html')
+            session.clear()
             session['usuario_id'] = usuario['id']
+            session['ultimo_acesso'] = int(time())
+            session['marca_sessao'] = marca_sessao(usuario['senha'])
             session['nome'] = usuario['nome']
             session['tipo'] = usuario['tipo']
             session['status_conta'] = usuario['status_conta']
@@ -152,6 +163,11 @@ def concluir_cadastro():
             form_data.get('resposta', '').strip().lower(), curso_final
         )
         
+        estado = auth_repository.buscar_estado_sessao(session['usuario_id'])
+        if estado is None:
+            session.clear()
+            return redirect(url_for('auth.login'))
+        session['marca_sessao'] = marca_sessao(estado['senha'])
         session['status_conta'] = 'ativa'
         session['nome'] = form_data.get('nome', '').strip()
         flash("Cadastro concluído com sucesso!", "sucesso")
@@ -160,35 +176,12 @@ def concluir_cadastro():
     return render_template('concluir_cadastro.html', cursos=cursos, usuario=usuario, form_data=request.form, curso_atual_id=curso_atual_id)
 
 @auth_bp.route('/recuperar', methods=['GET', 'POST'])
-@limiter.limit("15 per minute", methods=["POST"], key_func=lambda: request.remote_addr or "unknown")
 def recuperar_senha():
     if 'usuario_id' in session: 
         return redirect(url_for('auth.index'))
 
-    if request.method == 'POST':
-        form_data = request.form
-        matricula_form = form_data.get('matricula', '').strip()
-        nova_senha = form_data.get('nova_senha', '') 
+    return render_template('recuperar.html')
 
-        usuario = auth_repository.buscar_usuario_por_identificador(matricula_form)
-        
-        if not usuario:
-            flash("Matrícula ou Login não encontrados.", "erro")
-            return render_template('recuperar.html', form_data=form_data, erro_campo='matricula')
-
-        if len(nova_senha) < 6:
-            flash("Erro de Segurança: A nova senha deve conter no mínimo 6 caracteres.", "erro")
-            return render_template('recuperar.html', form_data=form_data, erro_campo='nova_senha')
-
-        if usuario['pergunta_seguranca'] == form_data.get('pergunta') and check_password_hash(usuario['resposta_seguranca'], form_data.get('resposta', '').strip().lower()):
-            auth_repository.atualizar_senha_recuperada(usuario['id'], nova_senha)
-            flash("Senha alterada! Acesse com a nova credencial.", "sucesso")
-            return redirect(url_for('auth.login'))
-        else:
-            flash("Dados de validação incorretos.", "erro")
-            return render_template('recuperar.html', form_data=form_data, erro_campo='resposta')
-
-    return render_template('recuperar.html', form_data=request.form)
 
 @auth_bp.route('/editar-perfil', methods=['GET', 'POST'])
 @requer_autenticacao

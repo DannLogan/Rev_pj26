@@ -5,7 +5,7 @@ O Rev_pj26 registra frequência por projeto e edição. A aplicação é um mon�
 ## Fluxo do sistema
 
 1. **Administração.** O administrador mantém cursos, projetos, usuários e vínculos de supervisão. Abre a edição ativa e importa alunos por CSV quando necessário. A troca de ciclo continua removendo os vínculos anteriores, conforme o comportamento existente.
-2. **Acesso.** O usuário entra pelo identificador reconhecido pelo sistema. Contas pendentes passam pela conclusão de cadastro. O aluno consulta o dashboard e o histórico e pode criar ou cancelar uma inscrição pendente.
+2. **Acesso.** O usuário entra pelo identificador reconhecido pelo sistema. Contas pendentes usam uma credencial provisória gerada pela administração e passam pela conclusão de cadastro. Em caso de perda de acesso, a administração verifica a identidade e emite uma nova credencial. O aluno consulta o dashboard e o histórico e pode criar ou cancelar uma inscrição pendente.
 3. **Credencial.** O aluno abre seu QR no dashboard. A aplicação consulta o token persistente da própria conta e renderiza a imagem SVG no servidor. A resposta é privada e sem cache.
 4. **Frequência.** O professor abre um projeto ativo que supervisiona e usa o scanner. O formulário envia o token no corpo de um POST protegido por CSRF. A aplicação confere o vínculo, encontra o aluno ativo e revalida o projeto e a supervisão na mesma transação que atualiza a inscrição. Se a inscrição já estiver confirmada, a leitura informa esse estado. Se ela não existir, a leitura não cria inscrição.
 5. **Relatórios.** O professor exporta a lista dos projetos autorizados. O administrador exporta o relatório geral da edição. Cabeçalhos, delimitador, codificação e formato existentes foram preservados.
@@ -17,8 +17,8 @@ O Rev_pj26 registra frequência por projeto e edição. A aplicação é um mon�
 | Autorização | Detalhe, scanner, confirmação e exportação exigem supervisão sobre projeto ativo. Recursos indisponíveis retornam 404. |
 | QR | Geração local do SVG com o token existente. O scanner usa POST e mantém o QR fora da URL. A versão da biblioteca do scanner foi fixada. |
 | Concorrência | A atualização condicional com RETURNING identifica quem confirmou a presença. A remoção administrativa verifica novamente se a inscrição está pendente no momento da exclusão. |
-| Importação | Cada linha fica isolada por savepoint para falhas de integridade. Falhas inesperadas abortam a operação. |
-| Autenticação | POST de login e recuperação limitado a 15 tentativas por minuto e por IP. O URI configurado é entregue ao Flask-Limiter. A execução direta do Flask desativa o debug. |
+| Importação | Cada linha fica isolada por savepoint para falhas de integridade. Falhas inesperadas abortam a operação. A importação tem limites de tamanho e volume. |
+| Autenticação | POST de login limitado a 15 tentativas por minuto e por IP. A recuperação por pergunta de segurança foi desativada. A sessão expira por inatividade e é invalidada quando a conta é desativada ou a senha muda. O URI configurado é entregue ao Flask-Limiter. A execução direta do Flask desativa o debug. |
 | Bootstrap | Criação de administrador exige BOOTSTRAP_ADMIN_PASSWORD com pelo menos 20 caracteres. Nova execução preserva a edição ativa já configurada. Erros passam a interromper o comando. |
 
 ## Compatibilidade e configuração
@@ -33,4 +33,13 @@ O Rev_pj26 registra frequência por projeto e edição. A aplicação é um mon�
 
 Os testes locais de serviço e contrato passaram. Os testes HTTP cobrem acesso a projetos alheios, POST e CSRF. Execute a suíte completa com as dependências de requirements.txt e Docker disponíveis. O teste de integração PostgreSQL atual verifica conectividade. A concorrência precisa de um teste com duas conexões reais e o esquema da aplicação.
 
-A próxima etapa de segurança é substituir senhas provisórias derivadas dos identificadores no cadastro, importação e reset e revisar contas já provisionadas. Também faltam recuperação por canal verificado, revogação de sessões abertas, limites distribuídos por conta e origem e a auditoria do proxy de produção. O teste de carga existente precisa usar rotas reais. Use métricas de latência, conexões e consultas para decidir sobre pooling e índices.
+## Transição das credenciais e sessões
+
+- Após o deploy, as sessões antigas exigem novo login. Sessões novas têm limite de inatividade de uma hora para aluno e professor e oito horas para admin.
+- Antes de publicar, confira que há um administrador ativo com senha forte. A senha legada do bootstrap e as senhas previsíveis de contas pendentes deixam de funcionar. Emita credenciais novas para essas contas via administração.
+- O cadastro manual, o reset e a importação exibem as credenciais provisórias na resposta administrativa com `Cache-Control: private, no-store`. Entregue cada credencial diretamente ao titular por canal institucional. O banco armazena o hash. A credencial vale até a troca no primeiro acesso ou até novo reset.
+- Para validar o rollout, confirme que um reset derruba a sessão anterior, que a senha nova permite concluir o cadastro e que um usuário desativado perde acesso. Verifique também que o HTML do resultado não é armazenado por proxy ou registrado por ferramentas de inspeção.
+
+## Medição e operação
+
+A recuperação automática exigiria um canal institucional verificado. A recuperação atual é assistida. Verifique a origem de IP no proxy e o compartilhamento dos contadores entre workers antes de usar os limites em produção. O teste de carga existente precisa usar rotas reais. Use métricas de latência, conexões e consultas para decidir sobre pooling e índices.

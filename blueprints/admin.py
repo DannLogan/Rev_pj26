@@ -2,15 +2,24 @@ import csv
 import io
 import re
 import uuid
+import secrets
 import math
 from io import StringIO
-from flask import Blueprint, render_template, session, redirect, url_for, flash, request, make_response
+from flask import Blueprint, render_template, session, redirect, url_for, flash, request, make_response, current_app
 from werkzeug.security import generate_password_hash
 from utils.decorators import requer_autenticacao, requer_perfil
 from repositories import admin_repository, auth_repository
 from db import obter_configuracao_global
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
+
+
+def mostrar_credenciais(credenciais, erros=0):
+    resposta = make_response(render_template(
+        'admin_credenciais.html', credenciais=credenciais, erros=erros
+    ))
+    resposta.headers['Cache-Control'] = 'private, no-store'
+    return resposta
 
 @admin_bp.route('/painel')
 @requer_autenticacao
@@ -180,23 +189,17 @@ def admin_novo_usuario():
                 if existe_usuario:
                     flash("Esta credencial/Login já existe no sistema.", "erro")
                 else:
+                    senha_provisoria = secrets.token_urlsafe(18)
                     login_gerado = admin_repository.cadastrar_usuario_manual(
-                        nome, matricula, tipo, "", str(uuid.uuid4()),
+                        nome, matricula, tipo, generate_password_hash(senha_provisoria), str(uuid.uuid4()),
                         request.form.getlist('cursos_ids'), request.form.getlist('projetos_ids'),
                         request.form.getlist('inscricoes_ids'), id_edicao
                     )
                     
-                    perfil_nome = "Administrador" if tipo == 'admin' else ("Professor" if tipo == 'professor' else "Aluno")
-                    
-                    flash(
-                        f"🎉 {perfil_nome} cadastrado com sucesso! "
-                        f"O login de acesso gerado foi: <strong>{login_gerado}</strong>. "
-                        f"A senha inicial é idêntica a este identificador.", 
-                        "sucesso"
-                    )
-                    return redirect(url_for('admin.admin_gestao_usuarios'))
+                    return mostrar_credenciais([(login_gerado, senha_provisoria)])
             except Exception as e:
-                flash(f"Erro ao salvar: {e}", "erro")
+                current_app.logger.exception("Erro ao salvar")
+                flash("Não foi possível salvar o usuário.", "erro")
                 
     cursos = admin_repository.listar_todos_cursos()
     
@@ -234,6 +237,7 @@ def editar_usuario(id_usuario):
             id_curso_selecionado = form_data.get('curso_id')
             curso_final = int(id_curso_selecionado) if id_curso_selecionado else None
 
+            senha_provisoria = secrets.token_urlsafe(18) if form_data.get('reset_senha') == 'sim' else None
             admin_repository.atualizar_usuario_admin(
                 id_usuario=id_usuario,
                 nome=form_data.get('nome', '').strip(),
@@ -242,13 +246,16 @@ def editar_usuario(id_usuario):
                 projetos_ids=form_data.getlist('projetos_ids'),
                 inscricoes_ids=form_data.getlist('inscricoes_ids'),
                 id_edicao=id_edicao,
-                reset_senha=form_data.get('reset_senha', 'nao'),
+                senha_provisoria_hash=generate_password_hash(senha_provisoria) if senha_provisoria else None,
                 identificador=identificador_valor
             )
+            if senha_provisoria:
+                return mostrar_credenciais([(identificador_valor, senha_provisoria)])
             flash("Usuário updated com sucesso!", "sucesso")
             return redirect(url_for('admin.admin_gestao_usuarios'))
         except Exception as e:
-            flash(f"Erro ao atualizar usuário: {e}", "erro")
+            current_app.logger.exception("Erro ao atualizar usuário")
+            flash("Não foi possível atualizar o usuário.", "erro")
 
     cursos = admin_repository.listar_todos_cursos()
     
@@ -297,7 +304,10 @@ def admin_importar():
             return redirect(request.url)
 
         try:
-            conteudo = arquivo.read()
+            conteudo = arquivo.read(2 * 1024 * 1024 + 1)
+            if len(conteudo) > 2 * 1024 * 1024:
+                flash("O CSV deve ter no máximo 2 MiB.", "erro")
+                return redirect(request.url)
             try: 
                 texto = conteudo.decode('utf-8-sig')
             except UnicodeDecodeError: 
@@ -305,6 +315,9 @@ def admin_importar():
 
             leitor = csv.reader(io.StringIO(texto), delimiter=';')
             linhas = list(leitor)
+            if len(linhas) > 5001:
+                flash("O CSV deve ter no máximo 5.000 registros e um cabeçalho.", "erro")
+                return redirect(request.url)
             if not linhas:
                 flash('O arquivo está vazio.', 'erro')
                 return redirect(request.url)
@@ -313,12 +326,11 @@ def admin_importar():
                 linhas.pop(0)
 
             id_edicao = obter_configuracao_global('edicao_ativa')
-            sucessos, erros = admin_repository.processar_importacao_csv(linhas, id_edicao)
-            
-            flash(f"Importação executada! Sucessos: {sucessos} | Duplicados ou Inválidos: {erros}", "sucesso" if sucessos > 0 else "info")
-            return redirect(url_for('admin.admin_gestao_usuarios'))
+            credenciais, erros = admin_repository.processar_importacao_csv(linhas, id_edicao)
+            return mostrar_credenciais(credenciais, erros)
         except Exception as e:
-            flash(f"Falha de processamento: {e}", "erro")
+            current_app.logger.exception("Falha de processamento")
+            flash("Não foi possível processar o arquivo.", "erro")
 
     return render_template('admin_importar.html')
 

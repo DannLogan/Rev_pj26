@@ -20,15 +20,6 @@ def create_app(configuracao_teste=None):
     if configuracao_teste:
         app.config.update(configuracao_teste)
 
-    @app.before_request
-    def configure_session_lifetime():
-        session_type = __import__('flask').session.get('tipo')
-        app.permanent_session_lifetime = (
-            app.config['ADMIN_SESSION_LIFETIME']
-            if session_type == 'admin'
-            else app.config['COMMON_SESSION_LIFETIME']
-        )
-
     @app.after_request
     def set_device_cookie(response):
         from utils.security import DEVICE_COOKIE, new_device_id

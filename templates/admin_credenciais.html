@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block title %}Credenciais provisórias{% endblock %}
+{% block content %}
+<h1>Credenciais provisórias</h1>
+<p>Entregue cada credencial somente ao titular, após conferir sua identidade. Esta tela é exibida no resultado da operação. A credencial será substituída na conclusão do cadastro.</p>
+<p>Geradas: {{ credenciais|length }}. Linhas rejeitadas: {{ erros }}.</p>
+<table class="table">
+    <thead><tr><th>Identificador</th><th>Senha provisória</th></tr></thead>
+    <tbody>
+        {% for identificador, senha in credenciais %}
+        <tr><td>{{ identificador }}</td><td><code>{{ senha }}</code></td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+<a href="{{ url_for('admin.admin_gestao_usuarios') }}">Voltar para usuários</a>
+{% endblock %}

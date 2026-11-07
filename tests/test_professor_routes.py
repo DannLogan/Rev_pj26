@@ -1,4 +1,9 @@
+from time import time
+
 import pytest
+
+from utils import decorators
+from utils.security import marca_sessao
 
 from repositories import professor_repository
 
@@ -10,8 +15,13 @@ def client(monkeypatch):
 
     app = create_app({"RATELIMIT_ENABLED": False})
     client = app.test_client()
-    with client.session_transaction() as session:
-        session.update(usuario_id=12, tipo="professor", status_conta="ativa")
+    usuario = {"tipo": "professor", "status_conta": "ativa", "senha": "hash-teste"}
+    monkeypatch.setattr(decorators, "buscar_estado_sessao", lambda _: usuario)
+    with app.app_context(), client.session_transaction() as session:
+        session.update(
+            usuario_id=12, tipo="professor", status_conta="ativa",
+            ultimo_acesso=int(time()), marca_sessao=marca_sessao(usuario["senha"]),
+        )
     return client
 
 
@@ -52,3 +62,12 @@ def test_professor_sem_vinculo_nao_registra_presenca(client, monkeypatch):
         "/professor/projeto/3/registrar",
         data={"csrf_token": token, "qr_token": "qr-1"},
     ).status_code == 404
+
+
+def test_sessao_revogada_quando_conta_desativada(client, monkeypatch):
+    monkeypatch.setattr(decorators, "buscar_estado_sessao", lambda _: None)
+    resposta = client.get("/professor/dashboard")
+    assert resposta.status_code == 302
+    assert resposta.headers["Location"].endswith("/login")
+    with client.session_transaction() as session:
+        assert "usuario_id" not in session

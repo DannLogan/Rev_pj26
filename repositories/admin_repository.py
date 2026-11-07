@@ -1,4 +1,5 @@
 import uuid
+import secrets
 from db import obter_conexao
 from psycopg2 import IntegrityError
 from werkzeug.security import generate_password_hash
@@ -186,7 +187,7 @@ def cadastrar_usuario_manual(nome: str, identificador: str, tipo: str, senha_has
         # =====================================================================
         if tipo == 'aluno':
             # Cria o hash da própria matrícula informada
-            senha_aluno_hash = generate_password_hash(identificador)
+            senha_aluno_hash = senha_hash
             
             cursor.execute("""
                 INSERT INTO usuarios (nome, login, senha, tipo, status_conta, chave_acesso, ativo)
@@ -229,8 +230,7 @@ def cadastrar_usuario_manual(nome: str, identificador: str, tipo: str, senha_has
                 num = cursor.fetchone()['numero']
                 id_corporativo_gerado = str(num).zfill(4)
 
-            # 2. Gera a senha criptografada baseada no ID sequencial numérico exato
-            senha_colaborador_hash = generate_password_hash(id_corporativo_gerado)
+            senha_colaborador_hash = senha_hash
 
             # 3. Insere o registro na tabela principal 'usuarios' usando o ID como login
             cursor.execute("""
@@ -261,7 +261,7 @@ def obter_lista_inscricoes_aluno(id_aluno: int, id_edicao: str) -> list:
         cursor.execute(sql, (id_aluno, id_real_edicao))
         return [row['id_projeto'] for row in cursor.fetchall()]
 
-def atualizar_usuario_admin(id_usuario: int, nome: str, tipo: str, cursos_ids: any, projetos_ids: list, inscricoes_ids: list, id_edicao: str, reset_senha: str, identificador: str) -> None:
+def atualizar_usuario_admin(id_usuario: int, nome: str, tipo: str, cursos_ids: any, projetos_ids: list, inscricoes_ids: list, id_edicao: str, senha_provisoria_hash: str | None, identificador: str) -> None:
     with obter_conexao() as cursor:
         id_real_edicao = _obter_id_edicao_por_nome(cursor, id_edicao)
         
@@ -312,8 +312,8 @@ def atualizar_usuario_admin(id_usuario: int, nome: str, tipo: str, cursos_ids: a
                     if p_id:
                         cursor.execute("INSERT INTO supervisores_projeto (id_professor, id_projeto) VALUES (%s, %s)", (id_usuario, p_id))
                 
-        if reset_senha == 'sim':
-            cursor.execute("UPDATE usuarios SET senha = %s, status_conta = 'pendente' WHERE id = %s", (generate_password_hash(identificador), id_usuario))
+        if senha_provisoria_hash:
+            cursor.execute("UPDATE usuarios SET senha = %s, status_conta = 'pendente' WHERE id = %s", (senha_provisoria_hash, id_usuario))
                         
 def alternar_status_usuario(id_usuario: int) -> dict:
     with obter_conexao() as cursor:
@@ -396,7 +396,7 @@ def verificar_vinculos_projeto(id_projeto: int, id_edicao_ativa: str) -> bool:
         return resultado['possui_vinculo'] if resultado else False    
     
 def processar_importacao_csv(linhas: list, id_edicao: str) -> tuple:
-    sucessos = 0
+    credenciais = []
     erros = 0
     
     with obter_conexao() as cursor:
@@ -413,9 +413,15 @@ def processar_importacao_csv(linhas: list, id_edicao: str) -> tuple:
                 erros += 1
                 continue
 
+            cursor.execute("SELECT 1 FROM usuarios WHERE login = %s", (matricula,))
+            if cursor.fetchone():
+                erros += 1
+                continue
+
             cursor.execute("SAVEPOINT importacao_linha")
             try:
-                senha_padrao_hash = generate_password_hash(matricula)
+                senha_provisoria = secrets.token_urlsafe(18)
+                senha_padrao_hash = generate_password_hash(senha_provisoria)
                 chave_unica = str(uuid.uuid4())
                 qr_token_novo = str(uuid.uuid4())
 
@@ -432,14 +438,14 @@ def processar_importacao_csv(linhas: list, id_edicao: str) -> tuple:
                     VALUES (%s, %s, 'csv', %s)
                 """, (novo_id_usuario, matricula, qr_token_novo))
 
-                sucessos += 1
+                credenciais.append((matricula, senha_provisoria))
 
             except IntegrityError:
                 cursor.execute("ROLLBACK TO SAVEPOINT importacao_linha")
                 erros += 1
             cursor.execute("RELEASE SAVEPOINT importacao_linha")
 
-    return sucessos, erros
+    return credenciais, erros
 
 def obter_relatorio_geral_presencas(id_edicao: str) -> list:
     with obter_conexao() as cursor:

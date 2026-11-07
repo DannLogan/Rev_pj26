@@ -142,3 +142,11 @@ def atualizar_senha_recuperada(usuario_id: int, nova_senha_bruta: str) -> None:
     sql = "UPDATE usuarios SET senha = %s WHERE id = %s"
     with obter_conexao() as cursor:
         cursor.execute(sql, (generate_password_hash(nova_senha_bruta), usuario_id))
+
+def buscar_estado_sessao(usuario_id: int) -> dict | None:
+    with obter_conexao() as cursor:
+        cursor.execute(
+            "SELECT tipo, status_conta, senha FROM usuarios WHERE id = %s AND ativo = 1",
+            (usuario_id,),
+        )
+        return cursor.fetchone()

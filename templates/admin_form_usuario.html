@@ -109,7 +109,7 @@
                     <h6 class="fw-bold text-danger mb-1"><i class="bi bi-shield-fill-exclamation"></i> Reset de Credenciais</h6>
                     <div class="form-check mt-2">
                         <input class="form-check-input border-danger shadow-none" type="checkbox" name="reset_senha" value="sim" id="reset_senha_check">
-                        <label class="form-check-label text-dark fw-bold small" for="reset_senha_check">Forçar redefinição de senha para o padrão.</label>
+                        <label class="form-check-label text-dark fw-bold small" for="reset_senha_check">Gerar nova senha provisória.</label>
                     </div>
                 </div>
                 {% endif %}
@@ -172,7 +172,7 @@
                     inputIdentificador.classList.add('bg-light', 'text-muted');
                     inputIdentificador.removeAttribute('required');
                     inputIdentificador.value = "[AUTOMÁTICO]";
-                    dicaIdentificador.innerHTML = "<i class='bi bi-shield-lock-fill'></i> Bloqueado. O banco gerará o ID. <strong>O ID gerado será o login e a senha provisória.</strong> A senha deverá ser alterada no primeiro acesso.";
+                    dicaIdentificador.innerHTML = "<i class='bi bi-shield-lock-fill'></i> Bloqueado. O banco gerará o ID. <strong>O ID gerado será o login.</strong> A senha deverá ser alterada no primeiro acesso.";
                     dicaIdentificador.className = "text-success fw-bold d-block mt-1";
                 }
                 inputIdentificador.removeAttribute('maxlength');
@@ -191,7 +191,7 @@
                     inputIdentificador.classList.add('bg-light', 'text-muted');
                     inputIdentificador.removeAttribute('required');
                     inputIdentificador.value = "[AUTOMÁTICO]";
-                    dicaIdentificador.innerHTML = "<i class='bi bi-shield-lock-fill'></i> Bloqueado. O banco gerará o ID. <strong>O ID gerado será o login e a senha provisória.</strong> A senha deverá ser alterada no primeiro acesso.";
+                    dicaIdentificador.innerHTML = "<i class='bi bi-shield-lock-fill'></i> Bloqueado. O banco gerará o ID. <strong>O ID gerado será o login.</strong> A senha deverá ser alterada no primeiro acesso.";
                     dicaIdentificador.className = "text-danger fw-bold d-block mt-1";
                 }
                 inputIdentificador.removeAttribute('maxlength');
