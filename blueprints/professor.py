@@ -62,7 +62,9 @@ def registrar_presenca(projeto_id):
             token_qrcode, projeto_id, id_edicao, session['usuario_id']
         )
         
-        if resultado['status'] == 'sucesso':
+        if resultado['status'] == 'edicao_indisponivel':
+            flash("A edição ativa mudou ou está indisponível. Reabra o scanner.", "erro")
+        elif resultado['status'] == 'sucesso':
             flash(f"Presença de {resultado['student']['nome']} computada com sucesso!", "sucesso")
         elif resultado['status'] == 'ja_presente':
             flash(f"Aviso: A presença de {resultado['student']['nome']} já havia sido registrada anteriormente.", "info")

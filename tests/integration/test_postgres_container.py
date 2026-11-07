@@ -7,7 +7,7 @@ from testcontainers.postgres import PostgresContainer
 from db import obter_conexao
 from init_db import inicializar_novo_banco_normalizado
 from repositories.admin_repository import atualizar_edicao_ativa
-from repositories.aluno_repository import realizar_inscricao_manual
+from repositories.aluno_repository import cancelar_inscricao_pendente, realizar_inscricao_manual
 from repositories.professor_repository import registrar_presenca_aluno
 
 
@@ -74,3 +74,7 @@ def test_apenas_uma_leitura_concorrente_confirma_presenca(monkeypatch):
             cursor.execute("UPDATE projetos SET ativo = 1 WHERE id = %s", (projeto,))
         assert realizar_inscricao_manual(ids["aluno"], projeto) == "sucesso"
         assert realizar_inscricao_manual(ids["aluno"], projeto) == "ja_inscrito"
+        assert cancelar_inscricao_pendente(ids["aluno"], projeto, edicao) == 0
+        assert registrar_presenca_aluno(
+            ids["aluno"], projeto, edicao, ids["professor"]
+        ) == "edicao_indisponivel"

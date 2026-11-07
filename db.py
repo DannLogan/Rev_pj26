@@ -48,3 +48,13 @@ def obter_configuracao_global(chave: str) -> str:
         cursor.execute("SELECT valor FROM configuracoes WHERE chave = %s", (chave,))
         resultado = cursor.fetchone()
         return resultado['valor'] if resultado else None
+
+
+def bloquear_edicao_ativa(cursor) -> str | None:
+    """Lê a configuração e impede a troca da edição até o fim da transação."""
+    cursor.execute("""
+        SELECT valor FROM configuracoes
+        WHERE chave = 'edicao_ativa' FOR SHARE
+    """)
+    configuracao = cursor.fetchone()
+    return configuracao['valor'] if configuracao else None

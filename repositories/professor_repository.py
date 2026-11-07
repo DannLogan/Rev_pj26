@@ -1,4 +1,4 @@
-from db import obter_conexao
+from db import bloquear_edicao_ativa, obter_conexao
 
 def _obter_id_edicao_por_nome(cursor, nome_edicao: str) -> int:
     """Função utilitária interna robusta que aceita tanto o ID numérico quanto o Nome textual."""
@@ -92,6 +92,10 @@ def registrar_presenca_aluno(
     id_aluno: int, id_projeto: int, id_edicao: str, id_professor: int
 ) -> str:
     with obter_conexao() as cursor:
+        edicao_ativa = bloquear_edicao_ativa(cursor)
+        if edicao_ativa is None or edicao_ativa != id_edicao:
+            return 'edicao_indisponivel'
+
         cursor.execute("""
             SELECT 1 FROM supervisores_projeto sp
             JOIN projetos p ON p.id = sp.id_projeto
@@ -102,6 +106,8 @@ def registrar_presenca_aluno(
             raise PermissionError("Projeto indisponível para o professor")
 
         id_real_edicao = _obter_id_edicao_por_nome(cursor, id_edicao)
+        if id_real_edicao is None:
+            return 'edicao_indisponivel'
         chave = (id_aluno, id_projeto, id_real_edicao)
         cursor.execute("""
             UPDATE inscricoes SET presenca = 1

@@ -1,4 +1,4 @@
-from db import obter_conexao
+from db import bloquear_edicao_ativa, obter_conexao
 
 def _obter_id_edicao_por_nome(cursor, nome_edicao: str) -> int:
     """Função utilitária interna robusta para obter o ID numérico a partir do nome ou do próprio ID."""
@@ -76,14 +76,7 @@ def obter_historico_aluno(usuario_id: int, id_edicao_ativa: str) -> list:
 
 def realizar_inscricao_manual(id_aluno: int, id_projeto: int) -> str:
     with obter_conexao() as cursor:
-        cursor.execute("""
-            SELECT valor FROM configuracoes
-            WHERE chave = 'edicao_ativa' FOR SHARE
-        """)
-        configuracao = cursor.fetchone()
-        if configuracao is None:
-            return 'indisponivel'
-        id_edicao = _obter_id_edicao_por_nome(cursor, configuracao['valor'])
+        id_edicao = _obter_id_edicao_por_nome(cursor, bloquear_edicao_ativa(cursor))
         if id_edicao is None:
             return 'indisponivel'
 
@@ -105,7 +98,10 @@ def realizar_inscricao_manual(id_aluno: int, id_projeto: int) -> str:
 def cancelar_inscricao_pendente(id_aluno: int, id_projeto: int, id_edicao: str) -> int:
     sql = "DELETE FROM inscricoes WHERE id_aluno = %s AND id_projeto = %s AND id_edicao = %s AND presenca = 0"
     with obter_conexao() as cursor:
-        id_real_edicao = _obter_id_edicao_por_nome(cursor, id_edicao)
+        edicao_ativa = bloquear_edicao_ativa(cursor)
+        if edicao_ativa is None or edicao_ativa != id_edicao:
+            return 0
+        id_real_edicao = _obter_id_edicao_por_nome(cursor, edicao_ativa)
         cursor.execute(sql, (id_aluno, id_projeto, id_real_edicao))
         return cursor.rowcount
 
