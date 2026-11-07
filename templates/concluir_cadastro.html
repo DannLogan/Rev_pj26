@@ -46,7 +46,7 @@
                 {% if usuario.tipo == 'aluno' %}
                 <div class="mb-4">
                     <label class="form-label fw-bold text-secondary">Confirme seu Curso</label>
-                    <select name="curso" required class="form-select">
+                    <select name="curso" {% if curso_atual_id %}disabled{% else %}required{% endif %} class="form-select">
                         <option value="">-- Escolha o seu curso --</option>
                         {% for c in cursos %}
                             <option value="{{ c.id }}" {% if c.id|string == form_data.get('curso') or c.id|string == curso_atual_id %}selected{% endif %}>
@@ -83,7 +83,7 @@
                     Sua senha provisória é igual ao seu ID corporativo. Defina uma nova senha diferente do ID para concluir o primeiro acesso.
                 </div>
                 {% endif %}
-                {{ ui.campo_input(nome="senha", label="Defina sua Nova Senha (Mínimo 6 caracteres)", tipo="password", erro_campo=erro_campo) }}
+                {{ ui.campo_input(nome="senha", label="Defina sua Nova Senha (Mínimo 12 caracteres)", tipo="password", erro_campo=erro_campo) }}
 
                 {{ ui.botao(texto="CONCLUIR CADASTRO", tipo="submit", estilo="acao-evento w-100 py-3 fw-bold fs-5 mt-2") }}
             </form>
@@ -109,9 +109,9 @@
                 }
                 
                 // Validação 2: Senha
-                if (campoSenha && campoSenha.value.trim().length < 6) {
+                if (campoSenha && campoSenha.value.trim().length < 12) {
                     e.preventDefault();
-                    alert('Segurança: A sua nova senha precisa ter pelo menos 6 caracteres!');
+                    alert('Segurança: A sua nova senha precisa ter pelo menos 12 caracteres!');
                     campoSenha.focus();
                 }
             });

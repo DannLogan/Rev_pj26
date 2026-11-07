@@ -152,3 +152,10 @@ Execute docs/auditoria-supabase.sql no SQL Editor do projeto para coletar invent
 4. Para medir carga, informe também `LOAD_TEST_COURSE_ID`. O curso usado no teste deve corresponder ao vínculo do professor e ao cadastro do aluno.
 
 O escopo usa o curso cadastrado em `usuarios_cursos`. Uma transferência de curso altera a visibilidade na edição ativa. Inscrições sem curso ficam fora da chamada do professor até a administração corrigir o cadastro. Para congelar a turma no momento da inscrição, é necessária uma migração separada com uma fonte confiável para o histórico.
+
+## Reinicialização e permissões granulares
+
+- O cadastro de recadastro deve ficar fora do Git. Ele inclui usuários e cursos, com a referência de curso anterior para remontar os vínculos. Gere credenciais novas no recadastro.
+- Publique a versão com bcrypt e RBAC após a CI. Antes da reinicialização, pare o acesso ao portal e valide o arquivo de recadastro. Execute `python init_db.py --reset-com-backup CAMINHO_DO_JSON` com a `DATABASE_URL` do projeto atual e `BOOTSTRAP_ADMIN_PASSWORD` fornecida pelo ambiente. O comando reconstrói somente as tabelas e sequências da aplicação em uma transação. O banco Supabase, as URLs e a configuração do Render são os mesmos.
+- As senhas novas usam bcrypt com custo 12 e limite de 72 bytes em UTF-8. A verificação aceita hashes Werkzeug durante a transição. O novo administrador é criado com a senha de bootstrap e os demais usuários recebem credenciais novas.
+- As rotas de aluno, professor e administração exigem perfil e uma permissão de leitura ou escrita. `rbac_papel_permissoes` define os padrões. Em **Usuários → Editar usuário → Gerenciar permissões**, um administrador autorizado pode conceder, negar ou restaurar o padrão de uma operação para outra conta dentro do perfil dela. Os padrões do perfil e a delegação da gestão de permissões são administrados no banco. O escopo por projeto e curso continua sendo exigido separadamente.

@@ -3,7 +3,7 @@ import secrets
 from db import bloquear_edicao_ativa, obter_conexao, resolver_id_edicao
 from psycopg2 import IntegrityError
 from repositories.auth_repository import identificador_em_uso_no_cursor
-from werkzeug.security import generate_password_hash
+from utils.passwords import hash_password
 
 def obter_nome_edicao_ativa() -> str:
     """Busca o nome textual (ex: '2026.1') da edição que está ativa no momento."""
@@ -435,7 +435,7 @@ def processar_importacao_csv(linhas: list, id_edicao: str) -> tuple:
             cursor.execute("SAVEPOINT importacao_linha")
             try:
                 senha_provisoria = secrets.token_urlsafe(18)
-                senha_padrao_hash = generate_password_hash(senha_provisoria)
+                senha_padrao_hash = hash_password(senha_provisoria)
                 chave_unica = str(uuid.uuid4())
                 qr_token_novo = str(uuid.uuid4())
 

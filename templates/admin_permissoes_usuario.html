@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% block title %}Permissões do usuário · Portal Simpósio{% endblock %}
+{% block content %}
+<header class="portal-section-heading">
+    <div>
+        <h1>Permissões do usuário</h1>
+        <p class="portal-muted mb-0">{{ usuario.nome }} · {{ usuario.tipo | capitalize }}</p>
+    </div>
+    <a class="btn btn-outline-secondary" href="{{ url_for('admin.editar_usuario', id_usuario=id_usuario) }}">Voltar ao cadastro</a>
+</header>
+<div class="card p-4">
+    <p class="portal-muted">As exceções valem para esta conta. Use o padrão para voltar a seguir as permissões do perfil.</p>
+    {% for permissao in permissoes %}
+        <div class="border-top py-3">
+            <div class="fw-semibold text-break">{{ permissao.codigo }}</div>
+            <div class="portal-muted small mb-2">Padrão do perfil {{ 'permite' if permissao.padrao else 'nega' }} esta operação</div>
+            {% if 'admin.admin_permissoes_usuario.write' in g.get('permissoes', ()) %}
+            <form method="post" class="d-flex flex-wrap align-items-center gap-2">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="permissao" value="{{ permissao.codigo }}">
+                <select class="form-select w-auto" name="escolha" aria-label="Exceção para {{ permissao.codigo }}">
+                    <option value="padrao"{% if permissao.excecao is none %} selected{% endif %}>Usar padrão</option>
+                    <option value="permitir"{% if permissao.excecao is sameas true %} selected{% endif %}>Permitir</option>
+                    <option value="negar"{% if permissao.excecao is sameas false %} selected{% endif %}>Negar</option>
+                </select>
+                <button class="btn btn-outline-secondary" type="submit">Salvar</button>
+            </form>
+            {% else %}
+                <p class="mb-0">{{ 'Segue o padrão' if permissao.excecao is none else ('Permissão concedida' if permissao.excecao else 'Permissão negada') }}</p>
+            {% endif %}
+        </div>
+    {% else %}
+        <p class="mb-0">Este perfil não tem permissões disponíveis para ajuste.</p>
+    {% endfor %}
+</div>
+{% endblock %}

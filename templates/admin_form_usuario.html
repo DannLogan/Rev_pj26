@@ -13,6 +13,9 @@
                 </a>
             </div>
             <h2 class="text-primario-evento fw-bold mb-0">{{ acao }} Registro de Usuário</h2>
+            {% if usuario and usuario.id != session.get('usuario_id') and 'admin.admin_permissoes_usuario.read' in g.get('permissoes', ()) %}
+                <a class="btn btn-outline-secondary mt-3" href="{{ url_for('admin.admin_permissoes_usuario', id_usuario=usuario.id) }}">Gerenciar permissões</a>
+            {% endif %}
         </div>
 
         {% call ui.card() %}

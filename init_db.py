@@ -1,7 +1,10 @@
+import argparse
+import json
 import os
+from pathlib import Path
 import psycopg2
 import uuid
-from werkzeug.security import generate_password_hash
+from utils.passwords import hash_password
 
 # ==============================================================================
 # 🚀 DADOS DE CONEXÃO DO NOVO SUPABASE (VIRGÍNIA)
@@ -12,12 +15,14 @@ DB_NAME = os.environ.get("DB_NAME", "postgres")
 DB_USER = os.environ.get("DB_USER", "postgres")
 DB_PASS = os.environ.get("DB_PASS")
 
-def inicializar_novo_banco_normalizado():
+def inicializar_novo_banco_normalizado(*, backup: Path | None = None):
     conn = None
     print("--- Iniciando Criação do Banco de Dados Atualizado na Virgínia ---")
     
     try:
         database_url = os.environ.get("DATABASE_URL")
+        if backup is not None and not database_url:
+            raise RuntimeError("Configure DATABASE_URL explicitamente para reinicializar.")
         conn = psycopg2.connect(database_url) if database_url else psycopg2.connect(
             host=DB_HOST,
             port=DB_PORT,
@@ -26,6 +31,26 @@ def inicializar_novo_banco_normalizado():
             password=DB_PASS
         )
         cursor = conn.cursor()
+        cursor.execute("SET LOCAL search_path TO public")
+        if backup is not None:
+            cadastro = json.loads(backup.read_text(encoding="utf-8-sig"))
+            cursor.execute("SET LOCAL lock_timeout TO '5s'")
+            cursor.execute("LOCK TABLE usuarios, cursos IN ACCESS EXCLUSIVE MODE")
+            ids_backup = tuple(sorted(item["id_anterior"] for item in cadastro[tabela])
+                               for tabela in ("usuarios", "cursos"))
+            cursor.execute("""
+                SELECT ARRAY(SELECT id FROM usuarios ORDER BY id),
+                       ARRAY(SELECT id FROM cursos ORDER BY id)
+            """)
+            if cursor.fetchone() != ids_backup:
+                raise RuntimeError("O arquivo de recadastro diverge do banco. Exporte novamente.")
+            cursor.execute("""
+                DROP TABLE IF EXISTS rbac_usuario_permissoes, rbac_papel_permissoes,
+                    rbac_permissoes, rbac_papeis, supervisores_projeto_curso, supervisores_projeto,
+                    inscricoes, usuarios_cursos, alunos, professores, configuracoes, projetos,
+                    edicoes, cursos, usuarios;
+                DROP SEQUENCE IF EXISTS seq_id_professor, seq_id_admin;
+            """)
 
         # 1. CRIAÇÃO DAS TABELAS COM AS TRAVAS E REGRAS DA VIRGÍNIA
         cursor.execute('''
@@ -60,7 +85,7 @@ def inicializar_novo_banco_normalizado():
             email_institucional TEXT,
             login TEXT UNIQUE,
             senha TEXT NOT NULL,
-            tipo TEXT NOT NULL,
+            tipo TEXT NOT NULL CHECK (tipo IN ('admin', 'professor', 'aluno')),
             status_conta TEXT,
             pergunta_seguranca TEXT,
             resposta_seguranca TEXT,
@@ -89,12 +114,6 @@ def inicializar_novo_banco_normalizado():
             CONSTRAINT unique_aluno_curso UNIQUE (id_aluno)
         );
 
-        CREATE TABLE IF NOT EXISTS supervisores_projeto (
-            id_professor INTEGER NOT NULL REFERENCES usuarios(id),
-            id_projeto INTEGER NOT NULL REFERENCES projetos(id),
-            PRIMARY KEY (id_professor, id_projeto)
-        );
-
         -- 🚀 TIMESTAMP DEFAULT: O banco calcula a data de inscrição automaticamente
         CREATE TABLE IF NOT EXISTS supervisores_projeto_curso (
             id_professor INTEGER NOT NULL REFERENCES professores(id_usuario),
@@ -114,6 +133,23 @@ def inicializar_novo_banco_normalizado():
             PRIMARY KEY (id_aluno, id_projeto, id_edicao)
         );
         ''')
+        cursor.execute((Path(__file__).parent / "docs" / "rbac.sql").read_text(encoding="utf-8"))
+        if backup is not None:
+            cursor.execute("""
+                DO $$
+                DECLARE papel_api text;
+                BEGIN
+                    FOR papel_api IN SELECT rolname FROM pg_roles WHERE rolname IN ('anon', 'authenticated')
+                    LOOP
+                        EXECUTE format(
+                            'REVOKE ALL ON configuracoes, edicoes, cursos, projetos, usuarios, alunos,
+                             professores, usuarios_cursos,
+                             supervisores_projeto_curso, inscricoes FROM %I', papel_api
+                        );
+                    END LOOP;
+                END;
+                $$;
+            """)
 
         cursor.execute("""
             SELECT setval(
@@ -154,7 +190,7 @@ def inicializar_novo_banco_normalizado():
             cursor.execute('''
                 INSERT INTO usuarios (nome, login, senha, tipo, status_conta, ativo, chave_acesso)
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
-            ''', ('Administrador Sistema', 'admin', generate_password_hash(senha_bootstrap), 'admin', 'ativo', 1, admin_uuid))
+            ''', ('Administrador Sistema', 'admin', hash_password(senha_bootstrap), 'admin', 'ativo', 1, admin_uuid))
             print("✔️ Usuário Administrador Mestre criado.")
         else:
             print("ℹ️ Administrador Mestre já existia no sistema.")
@@ -169,4 +205,7 @@ def inicializar_novo_banco_normalizado():
 
 
 if __name__ == '__main__':
-    inicializar_novo_banco_normalizado()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--reset-com-backup", type=Path, metavar="ARQUIVO_JSON")
+    args = parser.parse_args()
+    inicializar_novo_banco_normalizado(backup=args.reset_com_backup)
