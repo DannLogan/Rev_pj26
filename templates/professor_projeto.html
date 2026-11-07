@@ -11,12 +11,12 @@
         </a>
     </div>
     <h2 class="text-primario-evento fw-bold mb-1">{{ projeto.nome_projeto }}</h2>
-    <p class="text-muted mb-0">Gestão de Presenças e Alunos Inscritos</p>
+    <p class="text-muted mb-0">{{ projeto.nome_curso }}</p>
 </div>
 
 <div class="row g-3 mb-4">
     <div class="col-12 col-sm-6">
-        <a href="{{ url_for('professor.professor_scanner', projeto_id=projeto.id) }}" class="text-decoration-none">
+        <a href="{{ url_for('professor.professor_scanner', projeto_id=projeto.id, curso_id=projeto.id_curso) }}" class="text-decoration-none">
             <div class="card text-center p-4 btn-acao-evento text-white shadow-sm h-100 d-flex flex-column justify-content-center align-items-center border-0 rounded-3">
                 <i class="bi bi-qr-code-scan fs-1 mb-2"></i>
                 <span class="fw-bold fs-6 text-uppercase">Abrir Scanner de Câmera</span>
@@ -25,10 +25,10 @@
     </div>
     
     <div class="col-12 col-sm-6">
-        <a href="{{ url_for('professor.professor_exportar_csv', projeto_id=projeto.id, formato='planilha') }}" class="text-decoration-none">
+        <a href="{{ url_for('professor.professor_exportar_csv', projeto_id=projeto.id, curso_id=projeto.id_curso, formato='planilha') }}" class="text-decoration-none">
             <div class="card text-center p-4 bg-dark text-white shadow-sm h-100 d-flex flex-column justify-content-center align-items-center border-0 rounded-3">
                 <i class="bi bi-file-earmark-spreadsheet fs-1 mb-2"></i>
-                <span class="fw-bold fs-6 text-uppercase">Exportar Planilha CSV</span>
+                <span class="fw-bold fs-6 text-uppercase">Exportar chamada deste curso</span>
             </div>
         </a>
     </div>

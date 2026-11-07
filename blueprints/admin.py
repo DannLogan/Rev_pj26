@@ -1,3 +1,4 @@
+from services.supervision_service import parse_supervision_pairs
 import csv
 from utils.csv_export import linha_para_planilha
 import io
@@ -174,7 +175,7 @@ def admin_novo_usuario():
                     senha_provisoria = secrets.token_urlsafe(18)
                     login_gerado = admin_repository.cadastrar_usuario_manual(
                         nome, matricula, tipo, generate_password_hash(senha_provisoria), str(uuid.uuid4()),
-                        request.form.getlist('cursos_ids'), request.form.getlist('projetos_ids'),
+                        request.form.getlist('cursos_ids'), parse_supervision_pairs(request.form.getlist('supervisoes')) if tipo == 'professor' else [],
                         request.form.getlist('inscricoes_ids'), request.form.get('edicao') or None
                     )
                     
@@ -223,7 +224,7 @@ def editar_usuario(id_usuario):
                 nome=form_data.get('nome', '').strip(),
                 tipo=usuario['tipo'],
                 cursos_ids=curso_final,
-                projetos_ids=form_data.getlist('projetos_ids'),
+                supervisoes=parse_supervision_pairs(form_data.getlist('supervisoes')) if usuario['tipo'] == 'professor' else [],
                 inscricoes_ids=form_data.getlist('inscricoes_ids'),
                 id_edicao=form_data.get('edicao') or None,
                 senha_provisoria_hash=generate_password_hash(senha_provisoria) if senha_provisoria else None,
@@ -246,8 +247,8 @@ def editar_usuario(id_usuario):
     projetos_filtrados = admin_repository.listar_projetos_ativos_por_edicao()
 
     lista_cursos_ids = admin_repository.obter_cursos_ids_do_usuario(id_usuario)      
-    lista_inscricoes_ids = admin_repository.obter_inscricoes_ids_do_usuario(id_usuario) 
-    lista_projetos_ids = admin_repository.obter_projetos_ids_do_usuario(id_usuario)     
+    lista_inscricoes_ids = admin_repository.obter_lista_inscricoes_aluno(id_usuario, id_edicao)
+    supervisoes_atuais = admin_repository.obter_supervisoes_do_usuario(id_usuario)
 
     return render_template(
         'admin_form_usuario.html', 
@@ -259,7 +260,7 @@ def editar_usuario(id_usuario):
         projects=projetos_filtrados,
         lista_cursos_ids=lista_cursos_ids,
         lista_inscricoes_ids=lista_inscricoes_ids,
-        lista_projetos_ids=lista_projetos_ids,
+        supervisoes_atuais=supervisoes_atuais,
         id_edicao=id_edicao,
         form_data=form_data
     )

@@ -28,6 +28,7 @@ def index():
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
 @limiter.limit("15 per minute", methods=["POST"], key_func=lambda: request.remote_addr or "unknown")
+@limiter.limit("10 per minute", methods=["POST"])
 def login():
     if 'usuario_id' in session:
         return redirect(url_for('auth.index'))

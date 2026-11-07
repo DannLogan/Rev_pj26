@@ -8,7 +8,7 @@ from db import obter_conexao
 from init_db import inicializar_novo_banco_normalizado
 from repositories.admin_repository import atualizar_edicao_ativa
 from repositories.aluno_repository import cancelar_inscricao_pendente, realizar_inscricao_manual
-from repositories.professor_repository import registrar_presenca_aluno
+from repositories.professor_repository import listar_chamadas_supervisor, registrar_presenca_aluno
 
 
 def test_apenas_uma_leitura_concorrente_confirma_presenca(monkeypatch):
@@ -29,20 +29,35 @@ def test_apenas_uma_leitura_concorrente_confirma_presenca(monkeypatch):
             projeto = cursor.fetchone()["id"]
             cursor.execute("SELECT id FROM edicoes WHERE nome_edicao = '2026.1'")
             edicao = str(cursor.fetchone()["id"])
-            cursor.execute("INSERT INTO supervisores_projeto VALUES (%s, %s)", (ids["professor"], projeto))
+            cursor.execute("INSERT INTO professores (id_usuario) VALUES (%s)", (ids["professor"],))
+            cursor.execute("INSERT INTO alunos (id_usuario, matricula) VALUES (%s, '0001')", (ids["aluno"],))
+            cursor.execute("INSERT INTO cursos (nome_curso) VALUES ('Curso A'), ('Curso B') RETURNING id")
+            curso, outro_curso = (row['id'] for row in cursor.fetchall())
+            cursor.execute("INSERT INTO usuarios_cursos VALUES (%s, %s)", (ids["aluno"], curso))
+            cursor.execute("INSERT INTO supervisores_projeto_curso VALUES (%s, %s, %s)", (ids["professor"], projeto, curso))
             cursor.execute("""
                 INSERT INTO inscricoes (id_aluno, id_projeto, id_edicao)
                 VALUES (%s, %s, %s)
             """, (ids["aluno"], projeto, edicao))
 
         with pytest.raises(PermissionError):
-            registrar_presenca_aluno(ids["aluno"], projeto, edicao, ids["aluno"])
+            registrar_presenca_aluno(ids["aluno"], projeto, edicao, ids["aluno"], curso)
+
+        with pytest.raises(PermissionError):
+            registrar_presenca_aluno(ids["aluno"], projeto, edicao, ids["professor"], outro_curso)
+        with obter_conexao() as cursor:
+            cursor.execute("UPDATE usuarios_cursos SET id_curso = %s WHERE id_aluno = %s", (outro_curso, ids["aluno"]))
+        assert listar_chamadas_supervisor(ids["professor"], edicao) == []
+        assert registrar_presenca_aluno(ids["aluno"], projeto, edicao, ids["professor"], curso) == "fora_do_escopo"
+        with obter_conexao() as cursor:
+            cursor.execute("UPDATE usuarios_cursos SET id_curso = %s WHERE id_aluno = %s", (curso, ids["aluno"]))
+        assert [row["matricula"] for row in listar_chamadas_supervisor(ids["professor"], edicao)] == ["0001"]
 
         barrier = Barrier(2)
 
         def registrar():
             barrier.wait(timeout=5)
-            return registrar_presenca_aluno(ids["aluno"], projeto, edicao, ids["professor"])
+            return registrar_presenca_aluno(ids["aluno"], projeto, edicao, ids["professor"], curso)
 
         with ThreadPoolExecutor(max_workers=2) as executor:
             requests = [executor.submit(registrar) for _ in range(2)]
@@ -76,5 +91,5 @@ def test_apenas_uma_leitura_concorrente_confirma_presenca(monkeypatch):
         assert realizar_inscricao_manual(ids["aluno"], projeto) == "ja_inscrito"
         assert cancelar_inscricao_pendente(ids["aluno"], projeto, edicao) == 0
         assert registrar_presenca_aluno(
-            ids["aluno"], projeto, edicao, ids["professor"]
+            ids["aluno"], projeto, edicao, ids["professor"], curso
         ) == "edicao_indisponivel"

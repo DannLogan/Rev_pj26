@@ -1,78 +1,57 @@
 from db import bloquear_edicao_ativa, obter_conexao, resolver_id_edicao
 
-def buscar_aluno_por_qr_token(qr_token: str) -> dict:
-    sql = """
-        SELECT u.id, u.nome, a.matricula
-        FROM usuarios u
-        JOIN alunos a ON u.id = a.id_usuario
-        WHERE a.qr_token = %s AND u.tipo = 'aluno' AND u.ativo = 1
-        LIMIT 2
-    """
+
+def buscar_aluno_por_qr_token(qr_token: str) -> dict | None:
     with obter_conexao() as cursor:
-        cursor.execute(sql, (qr_token,))
+        cursor.execute("""
+            SELECT u.id, u.nome, a.matricula
+            FROM usuarios u JOIN alunos a ON u.id = a.id_usuario
+            WHERE a.qr_token = %s AND u.tipo = 'aluno' AND u.ativo = 1
+            LIMIT 2
+        """, (qr_token,))
         alunos = cursor.fetchall()
         return alunos[0] if len(alunos) == 1 else None
-    
-def obter_projetos_supervisor(id_professor: int, id_edicao_ativa: str) -> list:
-    sql = """
-        SELECT p.id, p.nome_projeto, 
-               COUNT(i.id_aluno) AS total_inscritos, 
-               COALESCE(SUM(i.presenca), 0) AS total_presentes
-        FROM projetos p 
-        JOIN supervisores_projeto sp ON p.id = sp.id_projeto
-        LEFT JOIN inscricoes i ON p.id = i.id_projeto AND i.id_edicao = %s
-        WHERE sp.id_professor = %s AND p.ativo = 1 
-        GROUP BY p.id, p.nome_projeto
-    """
+
+
+def obter_projetos_supervisor(id_professor: int, edicao: str) -> list:
     with obter_conexao() as cursor:
-        id_real_edicao = resolver_id_edicao(cursor, id_edicao_ativa)
-        cursor.execute(sql, (id_real_edicao, id_professor))
+        cursor.execute("""
+            SELECT p.id, p.nome_projeto, c.id AS id_curso, c.nome_curso,
+                   COUNT(uc.id_aluno) AS total_inscritos,
+                   COUNT(uc.id_aluno) FILTER (WHERE i.presenca = 1) AS total_presentes
+            FROM supervisores_projeto_curso sp
+            JOIN projetos p ON p.id = sp.id_projeto AND p.ativo = 1
+            JOIN cursos c ON c.id = sp.id_curso
+            LEFT JOIN inscricoes i ON i.id_projeto = p.id AND i.id_edicao = %s
+            LEFT JOIN usuarios_cursos uc ON uc.id_aluno = i.id_aluno AND uc.id_curso = c.id
+            WHERE sp.id_professor = %s
+            GROUP BY p.id, p.nome_projeto, c.id, c.nome_curso
+            ORDER BY p.nome_projeto, c.nome_curso
+        """, (resolver_id_edicao(cursor, edicao), id_professor))
         return cursor.fetchall()
 
-def obter_projeto_por_id_e_professor(id_projeto: int, id_professor: int) -> dict:
-    sql = """
-        SELECT p.id, p.nome_projeto 
-        FROM projetos p 
-        JOIN supervisores_projeto sp ON p.id = sp.id_projeto 
-        WHERE p.id = %s AND sp.id_professor = %s AND p.ativo = 1
-    """
+
+def obter_projeto_por_id_e_professor(id_projeto: int, id_professor: int, id_curso: int) -> dict | None:
     with obter_conexao() as cursor:
-        cursor.execute(sql, (id_projeto, id_professor))
+        cursor.execute("""
+            SELECT p.id, p.nome_projeto, c.id AS id_curso, c.nome_curso
+            FROM supervisores_projeto_curso sp
+            JOIN projetos p ON p.id = sp.id_projeto AND p.ativo = 1
+            JOIN cursos c ON c.id = sp.id_curso
+            WHERE sp.id_professor = %s AND sp.id_projeto = %s AND sp.id_curso = %s
+        """, (id_professor, id_projeto, id_curso))
         return cursor.fetchone()
 
-def obter_projeto_por_id(id_projeto: int) -> dict:
-    sql = "SELECT id, nome_projeto FROM projetos WHERE id = %s"
-    with obter_conexao() as cursor:
-        cursor.execute(sql, (id_projeto,))
-        return cursor.fetchone()
 
-def buscar_aluno_por_chave_acesso(chave_acesso: str) -> dict:
-    sql = """
-        SELECT u.id, u.nome 
-        FROM usuarios u 
-        JOIN alunos a ON u.id = a.id_usuario 
-        WHERE u.chave_acesso = %s AND u.tipo = 'aluno'
-    """
+def obter_nome_edicao(edicao: str) -> str:
     with obter_conexao() as cursor:
-        cursor.execute(sql, (chave_acesso,))
-        return cursor.fetchone()
-
-def obter_nome_edicao(id_edicao: str) -> str:
-    with obter_conexao() as cursor:
-        valor = str(id_edicao).strip()
-        cursor.execute("SELECT nome_edicao FROM edicoes WHERE id = %s" if valor.isdigit() else "SELECT nome_edicao FROM edicoes WHERE nome_edicao = %s", (int(valor) if valor.isdigit() else valor,))
+        cursor.execute("SELECT nome_edicao FROM edicoes WHERE id = %s", (resolver_id_edicao(cursor, edicao),))
         resultado = cursor.fetchone()
         return resultado['nome_edicao'] if resultado else "Não configurado"
 
-def obter_inscricao_aluno(id_aluno: int, id_projeto: int, id_edicao: str) -> dict:
-    sql = "SELECT presenca FROM inscricoes WHERE id_aluno = %s AND id_projeto = %s AND id_edicao = %s"
-    with obter_conexao() as cursor:
-        id_real_edicao = resolver_id_edicao(cursor, id_edicao)
-        cursor.execute(sql, (id_aluno, id_projeto, id_real_edicao))
-        return cursor.fetchone()
 
 def registrar_presenca_aluno(
-    id_aluno: int, id_projeto: int, id_edicao: str, id_professor: int
+    id_aluno: int, id_projeto: int, id_edicao: str, id_professor: int, id_curso: int
 ) -> str:
     with obter_conexao() as cursor:
         edicao_ativa = bloquear_edicao_ativa(cursor)
@@ -80,13 +59,22 @@ def registrar_presenca_aluno(
             return 'edicao_indisponivel'
 
         cursor.execute("""
-            SELECT 1 FROM supervisores_projeto sp
-            JOIN projetos p ON p.id = sp.id_projeto
-            WHERE sp.id_professor = %s AND p.id = %s AND p.ativo = 1
+            SELECT 1 FROM supervisores_projeto_curso sp
+            JOIN projetos p ON p.id = sp.id_projeto AND p.ativo = 1
+            WHERE sp.id_professor = %s AND sp.id_projeto = %s AND sp.id_curso = %s
             FOR SHARE OF sp, p
-        """, (id_professor, id_projeto))
+        """, (id_professor, id_projeto, id_curso))
         if cursor.fetchone() is None:
-            raise PermissionError("Projeto indisponível para o professor")
+            raise PermissionError("Projeto ou curso indisponível para o professor")
+
+        cursor.execute("""
+            SELECT 1 FROM usuarios_cursos uc
+            JOIN usuarios u ON u.id = uc.id_aluno AND u.tipo = 'aluno' AND u.ativo = 1
+            WHERE uc.id_aluno = %s AND uc.id_curso = %s
+            FOR SHARE OF uc, u
+        """, (id_aluno, id_curso))
+        if cursor.fetchone() is None:
+            return 'fora_do_escopo'
 
         id_real_edicao = resolver_id_edicao(cursor, id_edicao)
         if id_real_edicao is None:
@@ -103,36 +91,34 @@ def registrar_presenca_aluno(
 
         cursor.execute("""
             SELECT 1 FROM inscricoes
-            WHERE id_aluno = %s AND id_projeto = %s AND id_edicao = %s
-              AND presenca = 1
+            WHERE id_aluno = %s AND id_projeto = %s AND id_edicao = %s AND presenca = 1
         """, chave)
         return 'ja_presente' if cursor.fetchone() is not None else 'nao_inscrito'
 
 
-def forçar_inscricao_com_presenca(id_aluno: int, id_projeto: int, id_edicao: str) -> None:
-    sql = "INSERT INTO inscricoes (id_aluno, id_projeto, id_edicao, presenca) VALUES (%s, %s, %s, 1)"
-    with obter_conexao() as cursor:
-        id_real_edicao = resolver_id_edicao(cursor, id_edicao)
-        cursor.execute(sql, (id_aluno, id_projeto, id_real_edicao))
+def listar_chamadas_supervisor(id_professor: int, edicao: str, id_projeto=None, id_curso=None) -> list:
+    if (id_projeto is None) != (id_curso is None):
+        raise ValueError("Informe projeto e curso juntos.")
 
-def listar_alunos_inscritos_no_projeto(id_projeto: int, id_edicao: str) -> list:
-    sql = """
-        SELECT 
-            u.nome, 
-            a.matricula, 
-            i.presenca,
-            COALESCE(c.nome_curso, 'Não Informado') AS nome_curso,
-            e.nome_edicao
-        FROM usuarios u 
-        JOIN alunos a ON u.id = a.id_usuario
-        JOIN inscricoes i ON u.id = i.id_aluno
-        JOIN edicoes e ON i.id_edicao = e.id
-        LEFT JOIN usuarios_cursos uc ON a.id_usuario = uc.id_aluno
-        LEFT JOIN cursos c ON uc.id_curso = c.id
-        WHERE i.id_projeto = %s AND i.id_edicao = %s 
-        ORDER BY u.nome
-    """
+    filtros = ""
+    parametros = [id_professor]
+    if id_projeto is not None and id_curso is not None:
+        filtros = "AND sp.id_projeto = %s AND sp.id_curso = %s"
+        parametros.extend((id_projeto, id_curso))
+
     with obter_conexao() as cursor:
-        id_real_edicao = resolver_id_edicao(cursor, id_edicao)
-        cursor.execute(sql, (id_projeto, id_real_edicao))
+        parametros.insert(0, resolver_id_edicao(cursor, edicao))
+        cursor.execute(f"""
+            SELECT p.nome_projeto, c.nome_curso, u.nome, a.matricula, i.presenca, e.nome_edicao
+            FROM supervisores_projeto_curso sp
+            JOIN projetos p ON p.id = sp.id_projeto AND p.ativo = 1
+            JOIN cursos c ON c.id = sp.id_curso
+            JOIN inscricoes i ON i.id_projeto = p.id AND i.id_edicao = %s
+            JOIN usuarios_cursos uc ON uc.id_aluno = i.id_aluno AND uc.id_curso = c.id
+            JOIN usuarios u ON u.id = i.id_aluno
+            JOIN alunos a ON a.id_usuario = u.id
+            JOIN edicoes e ON e.id = i.id_edicao
+            WHERE sp.id_professor = %s {filtros}
+            ORDER BY p.nome_projeto, c.nome_curso, u.nome, u.id
+        """, parametros)
         return cursor.fetchall()

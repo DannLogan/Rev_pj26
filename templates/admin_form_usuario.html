@@ -97,10 +97,17 @@
                     <h6 class="fw-bold text-dark border-bottom pb-2 mb-2"><i class="bi bi-briefcase"></i> Supervisão de Projetos</h6>
                     <div class="d-flex flex-column gap-2">
                         {% for p in projetos %}
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" name="projetos_ids" value="{{ p.id }}" id="chk_p_{{ p.id }}" {% if lista_projetos_ids and p.id in lista_projetos_ids %}checked{% endif %}>
-                            <label class="form-check-label text-dark small" for="chk_p_{{ p.id }}">{{ p.nome_projeto }}</label>
-                        </div>
+                        <fieldset class="mb-2">
+                            <legend class="fs-6">{{ p.nome_projeto }}</legend>
+                            {% for c in cursos %}
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="supervisoes" value="{{ p.id }}:{{ c.id }}" id="chk_p_{{ p.id }}_{{ c.id }}" {% if supervisoes_atuais and (p.id, c.id) in supervisoes_atuais %}checked{% endif %}>
+                                <label class="form-check-label" for="chk_p_{{ p.id }}_{{ c.id }}">{{ c.nome_curso }}</label>
+                            </div>
+                            {% endfor %}
+                        </fieldset>
+                        {% else %}
+                        <p class="text-muted">Nenhum projeto ativo disponível.</p>
                         {% endfor %}
                     </div>
                 </div>

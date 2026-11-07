@@ -26,8 +26,8 @@ def obter_nome_edicao_ativa() -> str:
 
 def obter_projetos_vinculados_admin(id_admin: int) -> list:
     sql = """
-        SELECT p.id, p.nome_projeto 
-        FROM supervisores_projeto sp 
+        SELECT DISTINCT p.id, p.nome_projeto
+        FROM supervisores_projeto_curso sp
         JOIN projetos p ON sp.id_projeto = p.id 
         WHERE sp.id_professor = %s
     """
@@ -47,11 +47,11 @@ def obter_inscricoes_ids_do_usuario(id_usuario: int) -> list:
         cursor.execute(sql, (id_usuario,))
         return [row['id_projeto'] for row in cursor.fetchall()]
 
-def obter_projetos_ids_do_usuario(id_usuario: int) -> list:
-    sql = "SELECT id_projeto FROM supervisores_projeto WHERE id_professor = %s"
+def obter_supervisoes_do_usuario(id_usuario: int) -> set[tuple[int, int]]:
+    sql = "SELECT id_projeto, id_curso FROM supervisores_projeto_curso WHERE id_professor = %s"
     with obter_conexao() as cursor:
         cursor.execute(sql, (id_usuario,))
-        return [row['id_projeto'] for row in cursor.fetchall()]
+        return {(row['id_projeto'], row['id_curso']) for row in cursor.fetchall()}
 
 def verificar_vinculos_alunos(tipo: str, target_id: int) -> list:
     if tipo == 'curso':
@@ -109,7 +109,7 @@ def alternar_status_projeto(id_projeto: int, *, desativar: bool = False) -> str:
         if novo_status == 0:
             cursor.execute("""
                 SELECT 1 FROM inscricoes WHERE id_projeto = %s AND id_edicao = %s
-                UNION ALL SELECT 1 FROM supervisores_projeto WHERE id_projeto = %s
+                UNION ALL SELECT 1 FROM supervisores_projeto_curso WHERE id_projeto = %s
                 LIMIT 1
             """, (id_projeto, edicao, id_projeto))
             if cursor.fetchone():
@@ -188,9 +188,22 @@ def bloquear_vinculos_edicao(cursor, id_edicao, projetos):
     return edicao
 
 
-def cadastrar_usuario_manual(nome: str, identificador: str, tipo: str, senha_hash: str, chave_unica: str, cursos: any, projetos: list, inscricoes: list, id_edicao: str) -> str:
+def salvar_supervisoes(cursor, id_professor, supervisoes):
+    if not supervisoes:
+        return
+    ids_cursos = sorted({curso for _, curso in supervisoes})
+    cursor.execute("SELECT id FROM cursos WHERE id = ANY(%s) ORDER BY id FOR SHARE", (ids_cursos,))
+    if len(cursor.fetchall()) != len(ids_cursos):
+        raise ValueError("Um dos cursos selecionados não existe.")
+    cursor.executemany("""
+        INSERT INTO supervisores_projeto_curso (id_professor, id_projeto, id_curso)
+        VALUES (%s, %s, %s)
+    """, [(id_professor, projeto, curso) for projeto, curso in supervisoes])
+
+
+def cadastrar_usuario_manual(nome: str, identificador: str, tipo: str, senha_hash: str, chave_unica: str, cursos: any, supervisoes: list, inscricoes: list, id_edicao: str) -> str:
     with obter_conexao() as cursor:
-        id_real_edicao = bloquear_vinculos_edicao(cursor, id_edicao, inscricoes if tipo == "aluno" else projetos)
+        id_real_edicao = bloquear_vinculos_edicao(cursor, id_edicao, inscricoes if tipo == "aluno" else [p for p, _ in supervisoes])
         
         # =====================================================================
         # FLUXO 1: CADASTRO DE ALUNO (Mantém a consistência original do RA)
@@ -260,10 +273,8 @@ def cadastrar_usuario_manual(nome: str, identificador: str, tipo: str, senha_has
             """, (novo_id, id_corporativo_gerado))
             
             # 5. Salva os vínculos de projetos do professor coordenador/supervisor
-            for p_id in list(set(projetos)):
-                if p_id:
-                    cursor.execute("INSERT INTO supervisores_projeto (id_professor, id_projeto) VALUES (%s, %s)", (novo_id, p_id))
-            
+            salvar_supervisoes(cursor, novo_id, supervisoes)
+
             # Retorna o ID gerado para que a Blueprint do Admin exiba na mensagem flash
             return id_corporativo_gerado
                             
@@ -274,13 +285,13 @@ def obter_lista_inscricoes_aluno(id_aluno: int, id_edicao: str) -> list:
         cursor.execute(sql, (id_aluno, id_real_edicao))
         return [row['id_projeto'] for row in cursor.fetchall()]
 
-def atualizar_usuario_admin(id_usuario: int, nome: str, tipo: str, cursos_ids: any, projetos_ids: list, inscricoes_ids: list, id_edicao: str, senha_provisoria_hash: str | None, identificador: str) -> None:
+def atualizar_usuario_admin(id_usuario: int, nome: str, tipo: str, cursos_ids: any, supervisoes: list, inscricoes_ids: list, id_edicao: str, senha_provisoria_hash: str | None, identificador: str) -> None:
     with obter_conexao() as cursor:
-        id_real_edicao = bloquear_vinculos_edicao(cursor, id_edicao, inscricoes_ids if tipo == "aluno" else projetos_ids)
+        id_real_edicao = bloquear_vinculos_edicao(cursor, id_edicao, inscricoes_ids if tipo == "aluno" else [p for p, _ in supervisoes])
         
         cursor.execute("UPDATE usuarios SET nome = %s, tipo = %s WHERE id = %s", (nome, tipo, id_usuario))
         cursor.execute("DELETE FROM usuarios_cursos WHERE id_aluno = %s", (id_usuario,))
-        cursor.execute("DELETE FROM supervisores_projeto WHERE id_professor = %s", (id_usuario,))
+        cursor.execute("DELETE FROM supervisores_projeto_curso WHERE id_professor = %s", (id_usuario,))
         
         if tipo == 'aluno':
             cursor.execute("""
@@ -320,11 +331,8 @@ def atualizar_usuario_admin(id_usuario: int, nome: str, tipo: str, cursos_ids: a
                 ON CONFLICT (id_usuario) DO UPDATE SET id_corporativo = EXCLUDED.id_corporativo
             """, (id_usuario, identificador))
             
-            if projetos_ids:
-                for p_id in projetos_ids:
-                    if p_id:
-                        cursor.execute("INSERT INTO supervisores_projeto (id_professor, id_projeto) VALUES (%s, %s)", (id_usuario, p_id))
-                
+            salvar_supervisoes(cursor, id_usuario, supervisoes)
+
         if senha_provisoria_hash:
             cursor.execute("UPDATE usuarios SET senha = %s, status_conta = 'pendente' WHERE id = %s", (senha_provisoria_hash, id_usuario))
                         
@@ -340,7 +348,7 @@ def alternar_status_usuario(id_usuario: int) -> dict:
 
 def preparar_novo_ciclo_limpeza(cursor):
     """Apaga os vínculos temporários (supervisores) e garante que todos os alunos tenham um QR Code."""
-    cursor.execute("DELETE FROM supervisores_projeto;")
+    cursor.execute("DELETE FROM supervisores_projeto_curso;")
 
     cursor.execute("""
         UPDATE alunos 
@@ -395,7 +403,7 @@ def listar_projetos_com_vinculos(id_edicao_ativa: str) -> list:
         cursor.execute("""
             SELECT p.*, EXISTS (
                 SELECT 1 FROM inscricoes WHERE id_projeto = p.id AND id_edicao = %s
-                UNION ALL SELECT 1 FROM supervisores_projeto WHERE id_projeto = p.id
+                UNION ALL SELECT 1 FROM supervisores_projeto_curso WHERE id_projeto = p.id
             ) AS possui_vinculos
             FROM projetos p ORDER BY p.ativo DESC, p.nome_projeto
         """, (edicao,))

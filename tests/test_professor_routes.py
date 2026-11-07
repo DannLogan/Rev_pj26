@@ -27,18 +27,18 @@ def client(monkeypatch):
 
 @pytest.mark.parametrize("suffix", ["", "/scanner", "/exportar"])
 def test_professor_sem_vinculo_nao_le_projeto(client, monkeypatch, suffix):
-    def buscar(projeto_id, professor_id):
-        assert (projeto_id, professor_id) == (3, 12)
+    def buscar(projeto_id, professor_id, curso_id):
+        assert (projeto_id, professor_id, curso_id) == (3, 12, 4)
         return None
 
     monkeypatch.setattr(professor_repository, "obter_projeto_por_id_e_professor", buscar)
-    assert client.get(f"/professor/projeto/3{suffix}").status_code == 404
+    assert client.get(f"/professor/projeto/3/curso/4{suffix}").status_code == 404
 
 
 def test_registro_exige_post_e_csrf(client):
-    assert client.get("/professor/projeto/3/registrar").status_code == 405
+    assert client.get("/professor/projeto/3/curso/4/registrar").status_code == 405
     assert client.post(
-        "/professor/projeto/3/registrar", data={"qr_token": "qr-1"}
+        "/professor/projeto/3/curso/4/registrar", data={"qr_token": "qr-1"}
     ).status_code == 400
 
 
@@ -59,7 +59,7 @@ def test_professor_sem_vinculo_nao_registra_presenca(client, monkeypatch):
     app.add_url_rule("/csrf-teste", view_func=generate_csrf)
     token = client.get("/csrf-teste").get_data(as_text=True)
     assert client.post(
-        "/professor/projeto/3/registrar",
+        "/professor/projeto/3/curso/4/registrar",
         data={"csrf_token": token, "qr_token": "qr-1"},
     ).status_code == 404
 
