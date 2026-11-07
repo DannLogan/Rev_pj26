@@ -90,3 +90,16 @@ def test_ready_retorna_503_quando_banco_indisponivel(client, monkeypatch):
     resposta = client.get("/ready")
     assert resposta.status_code == 503
     assert resposta.json == {"status": "unavailable"}
+
+
+def test_rota_autenticada_retorna_503_sem_expor_erro_do_banco(client, monkeypatch):
+    from psycopg2 import OperationalError
+
+    def indisponivel(_):
+        raise OperationalError("password authentication failed: detalhe privado")
+
+    monkeypatch.setattr(decorators, "buscar_estado_sessao", indisponivel)
+    resposta = client.get("/")
+    assert resposta.status_code == 503
+    assert b"detalhe privado" not in resposta.data
+    assert resposta.headers["X-Request-ID"]

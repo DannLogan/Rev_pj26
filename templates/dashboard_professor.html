@@ -1,38 +1,28 @@
 {% extends 'base.html' %}
-{% import 'componentes/macros.html' as ui %}
-
-{% block title %}Painel do Professor{% endblock %}
-
+{% block title %}Meus projetos · Portal Simpósio{% endblock %}
 {% block content %}
-<div class="mb-4 animate-fade-in">
-    <h2 class="text-primario-evento fw-bold mb-1">Painel do Orientador</h2>
-    <p class="text-muted mb-0">Selecione uma banca ou palestra sob sua responsabilidade para realizar a listagem de chamadas.</p>
-</div>
-
-<h5 class="fw-bold text-dark mb-3"><i class="bi bi-journals text-success me-1"></i> Projetos Sob Minha Supervisão</h5>
-
-<div class="row g-4">
-    {% for p in projetos %}
-    <div class="col-12 col-md-6 col-lg-6">
-        {% call ui.card(titulo=p.nome_projeto, icone="folder-symlink-fill") %}
-            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
-                <span class="text-muted small"><i class="bi bi-calendar2-check"></i> Ciclo Ativo: <strong>{{ edicao }}</strong></span>
-                <span class="badge bg-success-subtle border border-success text-success px-3 py-2 rounded-pill fw-bold">
-                    <i class="bi bi-people-fill me-1"></i> {{ p.total_presentes }} / {{ p.total_inscritos }} Presentes
-                </span>
-            </div>
-            <a href="{{ url_for('professor.professor_projeto', projeto_id=p.id) }}" class="btn btn-success w-100 py-3 fw-bold shadow-sm" style="background-color: #65a78c !important; border:none;">
-                <i class="bi bi-arrow-right-circle-fill me-1"></i> ACESSAR CONTROLE DE CHAMADA
-            </a>
-        {% endcall %}
+<header class="portal-section-heading">
+    <div>
+        <h1>Meus projetos</h1>
+        <p class="portal-muted mb-0">Abra um projeto para acompanhar as inscrições e registrar presenças.</p>
     </div>
+    <span class="portal-muted">Edição <strong class="portal-number">{{ edicao }}</strong></span>
+</header>
+<section class="portal-projects" aria-label="Projetos sob minha supervisão">
+    {% for p in projetos %}
+    <article class="portal-project">
+        <h3>{{ p.nome_projeto }}</h3>
+        <span class="portal-muted"><strong class="portal-number">{{ p.total_presentes }} / {{ p.total_inscritos }}</strong> presenças</span>
+        <a href="{{ url_for('professor.professor_projeto', projeto_id=p.id) }}" class="btn btn-acao-evento">Abrir chamada <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+    </article>
     {% else %}
-    <div class="col-12">
-        <div class="card text-center p-5 border border-dashed text-muted bg-white">
-            <i class="bi bi-folder-x fs-1 mb-2"></i>
-            <p class="mb-0">Nenhum projeto ou palestra está vinculado ao seu ID corporativo nesta edição do simpósio.</p>
+    <div class="portal-empty">
+        <i class="bi bi-folder2-open" aria-hidden="true"></i>
+        <div>
+            <h2 class="h5">Nenhum projeto vinculado nesta edição</h2>
+            <p class="portal-muted mb-0">Quando a administração vincular um projeto ao seu perfil, ele aparecerá aqui.</p>
         </div>
     </div>
     {% endfor %}
-</div>
+</section>
 {% endblock %}

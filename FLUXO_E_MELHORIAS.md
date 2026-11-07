@@ -137,3 +137,9 @@ Execute docs/auditoria-supabase.sql no SQL Editor do projeto para coletar invent
 - As chaves estrangeiras protegem os vínculos contra exclusões em cascata. A matrícula, o login, o identificador corporativo e o QR têm unicidade por coluna. A confirmação continua única por aluno, projeto e edição. O campo `presenca` aceita 0, 1 e o nulo do contrato legado.
 - A Data API pode permanecer habilitada. Os papéis `anon` e `authenticated` tiveram os privilégios sobre as dez tabelas revogados. O Flask conecta por PostgreSQL e deve usar uma credencial com os privilégios necessários no servidor.
 - Colisões entre campos de contas diferentes exigem que a administração confirme a titularidade antes de alterar os identificadores. O login rejeita um valor que corresponda a mais de uma conta ativa.
+
+## Diagnóstico de conexão no Render
+
+- Em **Environment**, configure `FLASK_ENV=production`, mantenha uma `SECRET_KEY` estável e configure `DATABASE_URL` com a URI PostgreSQL de **Connect → Session pooler** no Supabase, porta 5432. Use a senha atual do banco codificada na URI e inclua `sslmode=require`. A URL REST e as chaves da Data API são credenciais de outro tipo.
+- Em **Settings → Health Checks**, configure o caminho `/ready`. `/health` verifica o processo e `/ready` verifica também a conexão ao banco. O login público pode responder mesmo com o banco indisponível.
+- Após o deploy, confirme `/ready` com HTTP 200 e faça login. Se falhar, procure `database_unavailable` nos logs. O campo `database_error` categoriza a falha sem expor a mensagem da exceção: `authentication` para credencial, `pooler_user` para usuário ou projeto do pooler, `dns` para resolução de nome, `tls` para SSL, `timeout` ou `network` para conectividade.

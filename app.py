@@ -1,4 +1,5 @@
-from flask import Flask
+from flask import Flask, render_template
+from psycopg2 import OperationalError
 from werkzeug.exceptions import HTTPException
 from dotenv import load_dotenv
 from flask_wtf.csrf import CSRFProtect
@@ -39,6 +40,11 @@ def create_app(configuracao_teste=None):
             return error
         app.logger.exception('Erro não tratado na aplicação', exc_info=error)
         return 'Ocorreu um erro interno. Tente novamente mais tarde.', 500
+
+    @app.errorhandler(OperationalError)
+    def handle_database_unavailable(error):
+        app.logger.error("database_unavailable", exc_info=error)
+        return render_template("indisponivel.html"), 503
 
     from utils.logging import configure_logging
     configure_logging(app)
