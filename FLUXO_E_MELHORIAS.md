@@ -130,3 +130,10 @@ rollback;
 5. Validar a concorrência entre inscrição, confirmação, cancelamento e troca de edição. Medir consultas por QR e relatório por projeto e edição com EXPLAIN antes de decidir índices. Verificar também a restauração de backup e a ausência de credenciais, tokens e dados pessoais em logs e relatórios de auditoria.
 
 Execute docs/auditoria-supabase.sql no SQL Editor do projeto para coletar inventario, exposicao de leitura e contagens de inconsistencias. O script usa um snapshot somente leitura, com limite de tempo. Uma falha de schema ou permissao exige reconciliar o catalogo antes de interpretar as contagens. A consulta de grants e RLS no bloco acima continua necessaria para verificar politicas e acessos de escrita.
+
+### Integridade aplicada no Supabase
+
+- O SQL em `docs/integridade-postgres.sql` consolida as restrições aplicadas ao banco legado. Use-o somente em uma cópia do esquema anterior às migrações. Bancos novos recebem as restrições no `init_db.py`.
+- As chaves estrangeiras protegem os vínculos contra exclusões em cascata. A matrícula, o login, o identificador corporativo e o QR têm unicidade por coluna. A confirmação continua única por aluno, projeto e edição. O campo `presenca` aceita 0, 1 e o nulo do contrato legado.
+- A Data API pode permanecer habilitada. Os papéis `anon` e `authenticated` tiveram os privilégios sobre as dez tabelas revogados. O Flask conecta por PostgreSQL e deve usar uma credencial com os privilégios necessários no servidor.
+- Colisões entre campos de contas diferentes exigem que a administração confirme a titularidade antes de alterar os identificadores. O login rejeita um valor que corresponda a mais de uma conta ativa.

@@ -14,7 +14,9 @@ WHERE n.nspname = 'public' AND c.relkind IN ('r','p','v','m','f')
 ORDER BY 1, 2;
 
 SELECT 'presenca_invalida' AS verificacao, count(*) AS ocorrencias
-FROM public.inscricoes WHERE presenca IS NULL OR presenca NOT IN (0, 1)
+FROM public.inscricoes WHERE presenca NOT IN (0, 1)
+UNION ALL
+SELECT 'presenca_nula', count(*) FROM public.inscricoes WHERE presenca IS NULL
 UNION ALL
 SELECT 'perfis_invalidos', count(*) FROM public.usuarios
 WHERE tipo NOT IN ('aluno','professor','admin')

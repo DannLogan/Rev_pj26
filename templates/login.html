@@ -12,7 +12,7 @@
     </header>
     <div>
         {% call ui.card(titulo="Acesso ao Sistema", icone="lock-fill") %}
-            <form action="{{ url_for('auth.login') }}" method="POST">
+            <form action="{{ url_for('auth.login') }}" method="POST" data-login-form>
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 {{ ui.campo_input(nome="matricula", label="Matrícula, Login ou RA", placeholder="Digite seu acesso") }}
                 {{ ui.campo_input(nome="senha", label="Senha", tipo="password", placeholder="••••••••") }}

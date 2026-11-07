@@ -8,7 +8,8 @@ def buscar_usuario_por_identificador(identificador: str) -> dict:
         FROM usuarios u 
         LEFT JOIN alunos a ON u.id = a.id_usuario 
         LEFT JOIN professores p ON u.id = p.id_usuario
-        WHERE (u.login = %s OR u.email_institucional = %s OR a.matricula = %s OR p.id_corporativo = %s) 
+        WHERE (u.login = %s OR lower(replace(u.email_institucional, ' ', '')) = %s
+               OR a.matricula = %s OR p.id_corporativo = %s)
           AND u.ativo = 1
         LIMIT 2
     """
