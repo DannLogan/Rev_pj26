@@ -74,28 +74,33 @@ def obter_historico_aluno(usuario_id: int, id_edicao_ativa: str) -> list:
         cursor.execute(sql, (usuario_id, id_real_edicao))
         return cursor.fetchall()
 
-def verificar_inscricao_existente(id_aluno: int, id_projeto: int, id_edicao: str) -> dict:
-    sql = "SELECT 1 FROM inscricoes WHERE id_aluno = %s AND id_projeto = %s AND id_edicao = %s"
+def realizar_inscricao_manual(id_aluno: int, id_projeto: int) -> str:
     with obter_conexao() as cursor:
-        id_real_edicao = _obter_id_edicao_por_nome(cursor, id_edicao)
-        cursor.execute(sql, (id_aluno, id_projeto, id_real_edicao))
-        return cursor.fetchone()
+        cursor.execute("""
+            SELECT valor FROM configuracoes
+            WHERE chave = 'edicao_ativa' FOR SHARE
+        """)
+        configuracao = cursor.fetchone()
+        if configuracao is None:
+            return 'indisponivel'
+        id_edicao = _obter_id_edicao_por_nome(cursor, configuracao['valor'])
+        if id_edicao is None:
+            return 'indisponivel'
 
-def realizar_inscricao_manual(id_aluno: int, id_projeto: int, id_edicao: str) -> None:
-    sql = "INSERT INTO inscricoes (id_aluno, id_projeto, id_edicao, presenca) VALUES (%s, %s, %s, 0)"
-    with obter_conexao() as cursor:
-        id_real_edicao = _obter_id_edicao_por_nome(cursor, id_edicao)
-        cursor.execute(sql, (id_aluno, id_projeto, id_real_edicao))
+        cursor.execute("""
+            SELECT id FROM projetos WHERE id = %s AND ativo = 1 FOR SHARE
+        """, (id_projeto,))
+        if cursor.fetchone() is None:
+            return 'indisponivel'
 
-def registrar_auto_presenca(id_aluno: int, id_projeto: int, id_edicao: str) -> None:
-    sql = """
-        INSERT INTO inscricoes (id_aluno, id_projeto, id_edicao, presenca) 
-        VALUES (%s, %s, %s, 1)
-        ON CONFLICT (id_aluno, id_projeto, id_edicao) DO UPDATE SET presenca = 1
-    """
-    with obter_conexao() as cursor:
-        id_real_edicao = _obter_id_edicao_por_nome(cursor, id_edicao)
-        cursor.execute(sql, (id_aluno, id_projeto, id_real_edicao))
+        cursor.execute("""
+            INSERT INTO inscricoes (id_aluno, id_projeto, id_edicao, presenca)
+            VALUES (%s, %s, %s, 0)
+            ON CONFLICT (id_aluno, id_projeto, id_edicao) DO NOTHING
+            RETURNING 1
+        """, (id_aluno, id_projeto, id_edicao))
+        return 'sucesso' if cursor.fetchone() is not None else 'ja_inscrito'
+
 
 def cancelar_inscricao_pendente(id_aluno: int, id_projeto: int, id_edicao: str) -> int:
     sql = "DELETE FROM inscricoes WHERE id_aluno = %s AND id_projeto = %s AND id_edicao = %s AND presenca = 0"

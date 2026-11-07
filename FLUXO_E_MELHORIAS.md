@@ -21,6 +21,8 @@ O Rev_pj26 registra frequência por projeto e edição. A aplicação é um mon�
 | Autenticação | POST de login limitado a 15 tentativas por minuto e por IP. A recuperação por pergunta de segurança foi desativada. A sessão expira por inatividade e é invalidada quando a conta é desativada ou a senha muda. O URI configurado é entregue ao Flask-Limiter. A execução direta do Flask desativa o debug. |
 | Bootstrap | Criação de administrador exige BOOTSTRAP_ADMIN_PASSWORD com pelo menos 20 caracteres. Nova execução preserva a edição ativa já configurada. Erros passam a interromper o comando. |
 
+A inscrição manual valida o projeto ativo e lê a edição vigente dentro da mesma transação. Reenvios da mesma inscrição são tratados pela chave composta existente. A troca de edição bloqueia a linha de configuração durante a operação e pode inicializá-la se estiver ausente. Duas tentativas simultâneas de abrir a mesma edição resultam em uma criação. A limpeza de supervisores ao mudar o ciclo continua fazendo parte do fluxo.
+
 ## Compatibilidade e configuração
 
 - O DDL, os nomes e tipos de colunas, as chaves e os dados históricos foram preservados. As credenciais QR já emitidas mantêm o valor.

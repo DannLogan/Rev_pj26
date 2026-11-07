@@ -6,6 +6,8 @@ from testcontainers.postgres import PostgresContainer
 
 from db import obter_conexao
 from init_db import inicializar_novo_banco_normalizado
+from repositories.admin_repository import atualizar_edicao_ativa
+from repositories.aluno_repository import realizar_inscricao_manual
 from repositories.professor_repository import registrar_presenca_aluno
 
 
@@ -49,3 +51,26 @@ def test_apenas_uma_leitura_concorrente_confirma_presenca(monkeypatch):
         with obter_conexao() as cursor:
             cursor.execute("SELECT presenca FROM inscricoes")
             assert cursor.fetchall() == [{"presenca": 1}]
+
+
+        assert realizar_inscricao_manual(ids["aluno"], projeto) == "ja_inscrito"
+        with obter_conexao() as cursor:
+            cursor.execute("UPDATE projetos SET ativo = 0 WHERE id = %s", (projeto,))
+            cursor.execute("DELETE FROM configuracoes WHERE chave = 'edicao_ativa'")
+        assert realizar_inscricao_manual(ids["aluno"], projeto) == "indisponivel"
+
+        barrier = Barrier(2)
+
+        def abrir_edicao():
+            barrier.wait(timeout=5)
+            return atualizar_edicao_ativa("2026.2")
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            requests = [executor.submit(abrir_edicao) for _ in range(2)]
+            assert sorted(item.result(timeout=10) for item in requests) == ["ja_ativa", "sucesso"]
+
+        assert realizar_inscricao_manual(ids["aluno"], projeto) == "indisponivel"
+        with obter_conexao() as cursor:
+            cursor.execute("UPDATE projetos SET ativo = 1 WHERE id = %s", (projeto,))
+        assert realizar_inscricao_manual(ids["aluno"], projeto) == "sucesso"
+        assert realizar_inscricao_manual(ids["aluno"], projeto) == "ja_inscrito"

@@ -339,7 +339,11 @@ def atualizar_edicao_ativa(nova_edicao: str) -> str:
     nova_edicao = str(nova_edicao).strip()
     
     with obter_conexao() as cursor:
-        cursor.execute("SELECT valor FROM configuracoes WHERE chave = 'edicao_ativa'")
+        cursor.execute("""
+            INSERT INTO configuracoes (chave, valor) VALUES ('edicao_ativa', '')
+            ON CONFLICT (chave) DO NOTHING
+        """)
+        cursor.execute("SELECT valor FROM configuracoes WHERE chave = 'edicao_ativa' FOR UPDATE")
         config_atual = cursor.fetchone()
         
         if config_atual:
