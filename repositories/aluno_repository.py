@@ -103,3 +103,13 @@ def cancelar_inscricao_pendente(id_aluno: int, id_projeto: int, id_edicao: str) 
         id_real_edicao = _obter_id_edicao_por_nome(cursor, id_edicao)
         cursor.execute(sql, (id_aluno, id_projeto, id_real_edicao))
         return cursor.rowcount
+
+def obter_token_qr(id_aluno: int) -> str | None:
+    with obter_conexao() as cursor:
+        cursor.execute("""
+            SELECT a.qr_token FROM alunos a
+            JOIN usuarios u ON u.id = a.id_usuario
+            WHERE a.id_usuario = %s AND u.ativo = 1
+        """, (id_aluno,))
+        aluno = cursor.fetchone()
+        return aluno['qr_token'] if aluno else None

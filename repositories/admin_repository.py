@@ -1,5 +1,6 @@
 import uuid
 from db import obter_conexao
+from psycopg2 import IntegrityError
 from werkzeug.security import generate_password_hash
 
 def _obter_id_edicao_por_nome(cursor, nome_edicao: str) -> int:
@@ -293,7 +294,7 @@ def atualizar_usuario_admin(id_usuario: int, nome: str, tipo: str, cursos_ids: a
             
             for p_id, presenca in atuais_dict.items():
                 if p_id not in selecionados and presenca == 0:
-                    cursor.execute("DELETE FROM inscricoes WHERE id_aluno = %s AND id_projeto = %s AND id_edicao = %s", (id_usuario, p_id, id_real_edicao))
+                    cursor.execute("DELETE FROM inscricoes WHERE id_aluno = %s AND id_projeto = %s AND id_edicao = %s AND presenca = 0", (id_usuario, p_id, id_real_edicao))
             
             for p_id in selecionados:
                 if p_id not in atuais_dict:
@@ -412,12 +413,8 @@ def processar_importacao_csv(linhas: list, id_edicao: str) -> tuple:
                 erros += 1
                 continue
 
+            cursor.execute("SAVEPOINT importacao_linha")
             try:
-                cursor.execute("SELECT id FROM usuarios WHERE login = %s", (matricula,))
-                if cursor.fetchone():
-                    erros += 1
-                    continue
-
                 senha_padrao_hash = generate_password_hash(matricula)
                 chave_unica = str(uuid.uuid4())
                 qr_token_novo = str(uuid.uuid4())
@@ -437,9 +434,10 @@ def processar_importacao_csv(linhas: list, id_edicao: str) -> tuple:
 
                 sucessos += 1
 
-            except Exception:
+            except IntegrityError:
+                cursor.execute("ROLLBACK TO SAVEPOINT importacao_linha")
                 erros += 1
-                continue
+            cursor.execute("RELEASE SAVEPOINT importacao_linha")
 
     return sucessos, erros
 

@@ -25,4 +25,6 @@ class Config:
     LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
     LOG_FILE = os.environ.get("LOG_FILE") or None
     QR_RATE_LIMIT = os.environ.get("QR_RATE_LIMIT", "30 per minute")
-    QR_RATE_LIMIT_STORAGE_URI = os.environ.get("QR_RATE_LIMIT_STORAGE_URI", "memory://")
+    RATELIMIT_STORAGE_URI = os.environ.get("RATELIMIT_STORAGE_URI") or os.environ.get(
+        "QR_RATE_LIMIT_STORAGE_URI", "memory://"
+    )

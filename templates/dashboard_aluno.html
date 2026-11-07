@@ -75,7 +75,11 @@
     <div class="card bg-white p-4 text-center border-0 shadow-lg" style="width: 90%; max-width: 340px;">
         <h4 class="fw-bold text-primario-evento mb-2">Minha Credencial</h4>
         <div class="bg-light p-3 border rounded mb-3 d-flex justify-content-center align-items-center" style="min-height: 220px;">
-            <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={{ aluno.qr_token or '' }}" alt="QR Code do Aluno" class="img-fluid rounded shadow-sm">
+            {% if aluno.qr_token %}
+            <img src="{{ url_for('aluno.credencial') }}" width="200" height="200" loading="lazy" alt="QR Code do Aluno" class="img-fluid rounded shadow-sm">
+            {% else %}
+            <p class="mb-0">Credencial indisponível.</p>
+            {% endif %}
         </div>
         <h5 class="fw-bold text-dark mb-1">{{ session['nome'] }}</h5>
         <p class="text-muted small mb-4">RA: <strong class="font-monospace">{{ aluno.matricula or '' }}</strong></p>

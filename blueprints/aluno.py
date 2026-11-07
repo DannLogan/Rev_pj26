@@ -1,3 +1,8 @@
+from io import BytesIO
+
+import qrcode
+from qrcode.image.svg import SvgPathImage
+from flask import abort, send_file
 from flask import Blueprint, render_template, session, redirect, url_for, flash, request, current_app
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadTimeSignature
 from utils.decorators import requer_autenticacao, requer_perfil
@@ -59,3 +64,18 @@ def aluno_cancelar_inscricao(projeto_id):
     else:
         flash("Não é possível cancelar registros com presença confirmada.", "erro")
     return redirect(url_for('aluno.aluno_dashboard'))
+
+
+@aluno_bp.get('/credencial.svg')
+@requer_autenticacao
+@requer_perfil('aluno')
+def credencial():
+    token = aluno_repository.obter_token_qr(session['usuario_id'])
+    if not token:
+        abort(404)
+    imagem = BytesIO()
+    qrcode.make(token, image_factory=SvgPathImage).save(imagem)
+    imagem.seek(0)
+    resposta = send_file(imagem, mimetype='image/svg+xml')
+    resposta.headers['Cache-Control'] = 'private, no-store'
+    return resposta

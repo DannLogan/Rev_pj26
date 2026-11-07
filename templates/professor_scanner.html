@@ -24,14 +24,21 @@
     </div>
 </div>
 
-<script src="https://unpkg.com/html5-qrcode"></script>
+<form id="registrar-presenca" method="post" action="{{ url_for('professor.registrar_presenca', projeto_id=projeto_id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="qr_token">
+</form>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const html5QrCode = new Html5Qrcode("reader");
+        const form = document.getElementById('registrar-presenca');
+        let submitting = false;
         html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, (decodedText) => {
-            html5QrCode.stop().then(() => {
-                window.location.href = "/professor/projeto/{{ projeto_id }}/registrar/" + decodedText;
-            });
+            if (submitting) return;
+            submitting = true;
+            form.elements.qr_token.value = decodedText;
+            form.submit();
         }).catch(err => { console.error(err); });
     });
 </script>

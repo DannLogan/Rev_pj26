@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash, current_app
 from werkzeug.security import check_password_hash
 from itsdangerous import URLSafeTimedSerializer
+from extensions import limiter
 from utils.decorators import requer_autenticacao
 from repositories import auth_repository, admin_repository
 
@@ -24,6 +25,7 @@ def index():
     return redirect(url_for('auth.login'))
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
+@limiter.limit("15 per minute", methods=["POST"], key_func=lambda: request.remote_addr or "unknown")
 def login():
     if 'usuario_id' in session:
         return redirect(url_for('auth.index'))
@@ -158,6 +160,7 @@ def concluir_cadastro():
     return render_template('concluir_cadastro.html', cursos=cursos, usuario=usuario, form_data=request.form, curso_atual_id=curso_atual_id)
 
 @auth_bp.route('/recuperar', methods=['GET', 'POST'])
+@limiter.limit("15 per minute", methods=["POST"], key_func=lambda: request.remote_addr or "unknown")
 def recuperar_senha():
     if 'usuario_id' in session: 
         return redirect(url_for('auth.index'))
