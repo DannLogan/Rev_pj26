@@ -18,7 +18,7 @@ def obter_conexao():
     
     if url_producao:
         # Se estiver no Render, conecta usando a URL robusta do Pooler (porta 6543)
-        conn = psycopg2.connect(url_producao)
+        conn = psycopg2.connect(url_producao, connect_timeout=5)
     else:
         if not all((DB_HOST, DB_PASS)):
             raise RuntimeError("DATABASE_URL ou DB_HOST/DB_PASS devem ser configurados")
@@ -28,6 +28,7 @@ def obter_conexao():
             port=DB_PORT, 
             database=DB_NAME, 
             user=DB_USER, 
+            connect_timeout=5,
             password=DB_PASS
         )
         

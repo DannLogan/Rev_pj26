@@ -1,4 +1,3 @@
-import os
 from flask import Flask
 from werkzeug.exceptions import HTTPException
 from dotenv import load_dotenv
@@ -41,6 +40,25 @@ def create_app(configuracao_teste=None):
         app.logger.exception('Erro não tratado na aplicação', exc_info=error)
         return 'Ocorreu um erro interno. Tente novamente mais tarde.', 500
 
+    from utils.logging import configure_logging
+    configure_logging(app)
+
+    @app.get('/health')
+    def health():
+        return {"status": "ok"}
+
+    @app.get('/ready')
+    def readiness():
+        from db import obter_conexao
+
+        try:
+            with obter_conexao() as cursor:
+                cursor.execute("SELECT 1")
+        except Exception:
+            app.logger.exception("database_unavailable")
+            return {"status": "unavailable"}, 503
+        return {"status": "ok"}
+
     csrf = CSRFProtect(app)
     limiter.init_app(app)
     app.extensions['csrf'] = csrf
@@ -51,9 +69,6 @@ def create_app(configuracao_teste=None):
     app.register_blueprint(aluno_bp)
     app.register_blueprint(professor_bp)
     app.register_blueprint(admin_bp)
-
-    from utils.logging import configure_logging
-    configure_logging(app)
 
     return app
 

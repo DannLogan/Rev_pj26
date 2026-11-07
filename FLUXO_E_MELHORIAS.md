@@ -31,7 +31,7 @@ O Rev_pj26 registra frequência por projeto e edição. A aplicação é um mon�
 
 ## Validação e próximos passos
 
-Os testes locais de serviço e contrato passaram. Os testes HTTP cobrem acesso a projetos alheios, POST e CSRF. Execute a suíte completa com as dependências de requirements.txt e Docker disponíveis. O teste de integração PostgreSQL atual verifica conectividade. A concorrência precisa de um teste com duas conexões reais e o esquema da aplicação.
+Os testes locais de serviço e contrato passaram. Os testes HTTP cobrem acesso a projetos alheios, POST e CSRF. Execute a suíte completa com as dependências de requirements.txt e Docker disponíveis. O teste de integração usa PostgreSQL 16 descartável, aplica o esquema real e confere que duas conexões concorrentes produzem uma confirmação e uma resposta de presença já registrada. Ele também verifica a rejeição de um ator sem vínculo.
 
 ## Transição das credenciais e sessões
 
@@ -42,4 +42,8 @@ Os testes locais de serviço e contrato passaram. Os testes HTTP cobrem acesso a
 
 ## Medição e operação
 
-A recuperação automática exigiria um canal institucional verificado. A recuperação atual é assistida. Verifique a origem de IP no proxy e o compartilhamento dos contadores entre workers antes de usar os limites em produção. O teste de carga existente precisa usar rotas reais. Use métricas de latência, conexões e consultas para decidir sobre pooling e índices.
+A recuperação automática exigiria um canal institucional verificado. A recuperação atual é assistida. Verifique a origem de IP no proxy e o compartilhamento dos contadores entre workers antes de usar os limites em produção. O cenário Locust faz login de professor e usa dashboard, scanner, registro e exportação. Execute apenas em ambiente isolado com projeto ativo, professor vinculado e aluno inscrito. Instale Locust separadamente e forneça LOAD_TEST_ALLOW_WRITES=1, LOAD_TEST_PROJECT_ID, LOAD_TEST_QR_TOKEN, LOAD_TEST_LOGIN e LOAD_TEST_PASSWORD pelo ambiente. Execute `locust -f locustfile.py --host <url-de-teste>`. Reinicie a inscrição entre rodadas que precisam medir a primeira escrita. Com o mesmo QR, as demais leituras exercitam a confirmação idempotente. Compare p95, taxa de erros e saturação antes de decidir sobre pooling e índices.
+
+- `GET /health` verifica o processo. `GET /ready` consulta o banco e retorna 503 se ele estiver indisponível. Configure o health check conforme a finalidade.
+- A aplicação retorna `X-Request-ID` e emite um log JSON por requisição com rota parametrizada, método, status e duração. O formato omite corpo, parâmetros, URL bruta e texto de exceções. Configure a coleta e revise também logs do proxy e do servidor HTTP.
+- A conexão PostgreSQL tem timeout de abertura de cinco segundos. A carga e os planos SQL ainda devem ser medidos em homologação.
