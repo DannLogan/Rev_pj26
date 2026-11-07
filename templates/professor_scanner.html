@@ -26,6 +26,7 @@
 
 <form id="registrar-presenca" method="post" action="{{ url_for('professor.registrar_presenca', projeto_id=projeto_id) }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="edicao" value="{{ id_edicao }}">
     <input type="hidden" name="qr_token">
 </form>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>

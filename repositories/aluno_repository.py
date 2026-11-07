@@ -1,27 +1,8 @@
-from db import bloquear_edicao_ativa, obter_conexao
-
-def _obter_id_edicao_por_nome(cursor, nome_edicao: str) -> int:
-    """Função utilitária interna robusta para obter o ID numérico a partir do nome ou do próprio ID."""
-    if not nome_edicao:
-        return None
-        
-    nome_edicao_limpo = str(nome_edicao).strip()
-    
-    # Cenário A: Se o valor recebido já for puramente numérico (o ID salvo nas configurações)
-    if nome_edicao_limpo.isdigit():
-        cursor.execute("SELECT id FROM edicoes WHERE id = %s", (int(nome_edicao_limpo),))
-        res = cursor.fetchone()
-        if res:
-            return res['id']
-            
-    # Cenário B: Caso receba o nome textual da edição (fallback seguro)
-    cursor.execute("SELECT id FROM edicoes WHERE nome_edicao = %s", (nome_edicao_limpo,))
-    res = cursor.fetchone()
-    return res['id'] if res else None
+from db import bloquear_edicao_ativa, obter_conexao, resolver_id_edicao
 
 def obter_dashboard_aluno(usuario_id: int, id_edicao_ativa: str) -> dict:
     with obter_conexao() as cursor:
-        id_real_edicao = _obter_id_edicao_por_nome(cursor, id_edicao_ativa)
+        id_real_edicao = resolver_id_edicao(cursor, id_edicao_ativa)
 
         # Ajustado para trazer o qr_token essencial para a renderização do QR Code
         cursor.execute("""
@@ -70,13 +51,13 @@ def obter_historico_aluno(usuario_id: int, id_edicao_ativa: str) -> list:
         ORDER BY e.nome_edicao DESC, p.nome_projeto ASC
     """
     with obter_conexao() as cursor:
-        id_real_edicao = _obter_id_edicao_por_nome(cursor, id_edicao_ativa)
+        id_real_edicao = resolver_id_edicao(cursor, id_edicao_ativa)
         cursor.execute(sql, (usuario_id, id_real_edicao))
         return cursor.fetchall()
 
 def realizar_inscricao_manual(id_aluno: int, id_projeto: int) -> str:
     with obter_conexao() as cursor:
-        id_edicao = _obter_id_edicao_por_nome(cursor, bloquear_edicao_ativa(cursor))
+        id_edicao = resolver_id_edicao(cursor, bloquear_edicao_ativa(cursor))
         if id_edicao is None:
             return 'indisponivel'
 
@@ -101,7 +82,7 @@ def cancelar_inscricao_pendente(id_aluno: int, id_projeto: int, id_edicao: str) 
         edicao_ativa = bloquear_edicao_ativa(cursor)
         if edicao_ativa is None or edicao_ativa != id_edicao:
             return 0
-        id_real_edicao = _obter_id_edicao_por_nome(cursor, edicao_ativa)
+        id_real_edicao = resolver_id_edicao(cursor, edicao_ativa)
         cursor.execute(sql, (id_aluno, id_projeto, id_real_edicao))
         return cursor.rowcount
 

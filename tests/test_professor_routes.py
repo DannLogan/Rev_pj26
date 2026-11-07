@@ -71,3 +71,22 @@ def test_sessao_revogada_quando_conta_desativada(client, monkeypatch):
     assert resposta.headers["Location"].endswith("/login")
     with client.session_transaction() as session:
         assert "usuario_id" not in session
+
+
+def test_health_retorna_identificador_de_requisicao(client):
+    resposta = client.get("/health")
+    assert resposta.status_code == 200
+    assert resposta.json == {"status": "ok"}
+    assert len(resposta.headers["X-Request-ID"]) == 32
+
+
+def test_ready_retorna_503_quando_banco_indisponivel(client, monkeypatch):
+    import db
+
+    def indisponivel():
+        raise ConnectionError("detalhe interno")
+
+    monkeypatch.setattr(db, "obter_conexao", indisponivel)
+    resposta = client.get("/ready")
+    assert resposta.status_code == 503
+    assert resposta.json == {"status": "unavailable"}

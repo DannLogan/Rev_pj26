@@ -222,8 +222,9 @@ def editar_perfil():
             flash("Perfil atualizado com sucesso!", "sucesso")
             return redirect(voltar_url_post)
             
-        except Exception as e:
-            flash(f"Erro ao salvar alterações: {e}", "erro")
+        except Exception:
+            current_app.logger.exception("profile_update_failed")
+            flash("Não foi possível salvar as alterações.", "erro")
             return render_template('editar_perfil.html', usuario=usuario, cursos=cursos, curso_usuario_id=curso_usuario_id, voltar_url=voltar_url_post, form_data=form_data)
 
     return render_template('editar_perfil.html', usuario=usuario, cursos=cursos, curso_usuario_id=curso_usuario_id, voltar_url=voltar_url, form_data={})

@@ -58,3 +58,20 @@ def bloquear_edicao_ativa(cursor) -> str | None:
     """)
     configuracao = cursor.fetchone()
     return configuracao['valor'] if configuracao else None
+
+
+def resolver_id_edicao(cursor, valor: str | int | None) -> int | None:
+    """Resolve o ID legado, com fallback para o nome textual da edição."""
+    if not valor:
+        return None
+
+    nome = str(valor).strip()
+    id_candidato = int(nome) if nome.isascii() and nome.isdecimal() and len(nome) <= 10 else None
+    cursor.execute("""
+        SELECT id FROM edicoes
+        WHERE id = %s OR nome_edicao = %s
+        ORDER BY CASE WHEN id = %s THEN 0 ELSE 1 END, id
+        LIMIT 1
+    """, (id_candidato, nome, id_candidato))
+    edicao = cursor.fetchone()
+    return edicao['id'] if edicao else None

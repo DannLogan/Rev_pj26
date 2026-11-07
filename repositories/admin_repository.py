@@ -1,27 +1,8 @@
 import uuid
 import secrets
-from db import obter_conexao
+from db import obter_conexao, resolver_id_edicao
 from psycopg2 import IntegrityError
 from werkzeug.security import generate_password_hash
-
-def _obter_id_edicao_por_nome(cursor, nome_edicao: str) -> int:
-    """Função utilitária interna robusta para obter o ID numérico a partir do nome ou do próprio ID."""
-    if not nome_edicao:
-        return None
-        
-    nome_edicao_limpo = str(nome_edicao).strip()
-    
-    # Cenário A: Se o valor recebido já for puramente numérico (o ID salvo nas configurações)
-    if nome_edicao_limpo.isdigit():
-        cursor.execute("SELECT id FROM edicoes WHERE id = %s", (int(nome_edicao_limpo),))
-        res = cursor.fetchone()
-        if res:
-            return res['id']
-            
-    # Cenário B: Caso receba o nome textual da edição (fallback seguro)
-    cursor.execute("SELECT id FROM edicoes WHERE nome_edicao = %s", (nome_edicao_limpo,))
-    res = cursor.fetchone()
-    return res['id'] if res else None
 
 def obter_nome_edicao_ativa() -> str:
     """Busca o nome textual (ex: '2026.1') da edição que está ativa no momento."""
@@ -180,7 +161,7 @@ def listar_usuarios_painel_paginado(busca_matricula: str, tipo_filtro: str, letr
 
 def cadastrar_usuario_manual(nome: str, identificador: str, tipo: str, senha_hash: str, chave_unica: str, cursos: any, projetos: list, inscricoes: list, id_edicao: str) -> str:
     with obter_conexao() as cursor:
-        id_real_edicao = _obter_id_edicao_por_nome(cursor, id_edicao)
+        id_real_edicao = resolver_id_edicao(cursor, id_edicao)
         
         # =====================================================================
         # FLUXO 1: CADASTRO DE ALUNO (Mantém a consistência original do RA)
@@ -256,14 +237,14 @@ def cadastrar_usuario_manual(nome: str, identificador: str, tipo: str, senha_has
                             
 def obter_lista_inscricoes_aluno(id_aluno: int, id_edicao: str) -> list:
     with obter_conexao() as cursor:
-        id_real_edicao = _obter_id_edicao_por_nome(cursor, id_edicao)
+        id_real_edicao = resolver_id_edicao(cursor, id_edicao)
         sql = "SELECT id_projeto FROM inscricoes WHERE id_aluno = %s AND id_edicao = %s"
         cursor.execute(sql, (id_aluno, id_real_edicao))
         return [row['id_projeto'] for row in cursor.fetchall()]
 
 def atualizar_usuario_admin(id_usuario: int, nome: str, tipo: str, cursos_ids: any, projetos_ids: list, inscricoes_ids: list, id_edicao: str, senha_provisoria_hash: str | None, identificador: str) -> None:
     with obter_conexao() as cursor:
-        id_real_edicao = _obter_id_edicao_por_nome(cursor, id_edicao)
+        id_real_edicao = resolver_id_edicao(cursor, id_edicao)
         
         cursor.execute("UPDATE usuarios SET nome = %s, tipo = %s WHERE id = %s", (nome, tipo, id_usuario))
         cursor.execute("DELETE FROM usuarios_cursos WHERE id_aluno = %s", (id_usuario,))
@@ -379,7 +360,7 @@ def atualizar_edicao_ativa(nova_edicao: str) -> str:
 def verificar_vinculos_projeto(id_projeto: int, id_edicao_ativa: str) -> bool:
     """Retorna True se o projeto tiver qualquer aluno inscrito ou professor supervisor neste ciclo."""
     with obter_conexao() as cursor:
-        id_real_edicao = _obter_id_edicao_por_nome(cursor, id_edicao_ativa)
+        id_real_edicao = resolver_id_edicao(cursor, id_edicao_ativa)
         
         sql = """
             SELECT EXISTS (
@@ -453,7 +434,7 @@ def processar_importacao_csv(linhas: list, id_edicao: str) -> tuple:
 
 def obter_relatorio_geral_presencas(id_edicao: str) -> list:
     with obter_conexao() as cursor:
-        id_real_edicao = _obter_id_edicao_por_nome(cursor, id_edicao)
+        id_real_edicao = resolver_id_edicao(cursor, id_edicao)
         sql = """
             SELECT u.nome, a.matricula, c.nome_curso, p.nome_projeto, e.nome_edicao,
                 CASE WHEN i.presenca = 1 THEN 'Presente' ELSE 'Faltou' END as status

@@ -45,7 +45,12 @@ def professor_projeto(projeto_id):
 @requer_perfil('professor')
 def professor_scanner(projeto_id):
     projeto = projeto_supervisionado(projeto_id)
-    return render_template('professor_scanner.html', projeto=projeto, projeto_id=projeto_id)
+    id_edicao = obter_configuracao_global('edicao_ativa')
+    if not id_edicao:
+        abort(409)
+    return render_template(
+        'professor_scanner.html', projeto=projeto, projeto_id=projeto_id, id_edicao=id_edicao
+    )
 
 @professor_bp.route('/projeto/<int:projeto_id>/registrar', methods=['POST'])
 @limiter.limit(lambda: __import__('flask').current_app.config['QR_RATE_LIMIT'])
@@ -54,10 +59,10 @@ def professor_scanner(projeto_id):
 def registrar_presenca(projeto_id):
     projeto_supervisionado(projeto_id)
     token_qrcode = request.form.get('qr_token', '')
-    if not token_qrcode or len(token_qrcode) > 255:
+    id_edicao = request.form.get('edicao', '')
+    if not id_edicao or not token_qrcode or len(token_qrcode) > 255:
         abort(400)
     try:
-        id_edicao = obter_configuracao_global('edicao_ativa')
         resultado = AttendanceService(professor_repository).register_from_qr(
             token_qrcode, projeto_id, id_edicao, session['usuario_id']
         )

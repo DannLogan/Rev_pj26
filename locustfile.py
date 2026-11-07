@@ -5,21 +5,23 @@ from locust import HttpUser, between, task
 from locust.exception import StopUser
 
 
-class CsrfToken(HTMLParser):
-    value = None
+class FormFields(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.fields = {}
 
     def handle_starttag(self, tag, attrs):
         attributes = dict(attrs)
-        if tag == "input" and attributes.get("name") == "csrf_token":
-            self.value = attributes.get("value")
+        if tag == "input" and attributes.get("type") == "hidden" and "name" in attributes:
+            self.fields[attributes["name"]] = attributes.get("value")
 
 
-def csrf_token(response):
-    parser = CsrfToken()
+def form_fields(response, *names):
+    parser = FormFields()
     parser.feed(response.text)
-    if not parser.value:
-        raise StopUser("Formulário sem token CSRF")
-    return parser.value
+    if any(not parser.fields.get(name) for name in names):
+        raise StopUser("Formulário incompleto")
+    return {name: parser.fields[name] for name in names}
 
 
 class Professor(HttpUser):
@@ -32,7 +34,7 @@ class Professor(HttpUser):
         self.qr_token = os.environ["LOAD_TEST_QR_TOKEN"]
         login = self.client.get("/login")
         with self.client.post("/login", data={
-            "csrf_token": csrf_token(login),
+            **form_fields(login, "csrf_token"),
             "matricula": os.environ["LOAD_TEST_LOGIN"],
             "senha": os.environ["LOAD_TEST_PASSWORD"],
         }, allow_redirects=False, catch_response=True) as response:
@@ -40,7 +42,7 @@ class Professor(HttpUser):
                 response.failure("Login de professor recusado")
                 raise StopUser()
         scanner = self.client.get(f"{self.project}/scanner", name="/professor/projeto/:id/scanner")
-        self.csrf = csrf_token(scanner)
+        self.scanner_fields = form_fields(scanner, "csrf_token", "edicao")
 
     @task(4)
     def dashboard(self):
@@ -49,7 +51,7 @@ class Professor(HttpUser):
     @task(2)
     def registrar_presenca(self):
         with self.client.post(f"{self.project}/registrar", name="/professor/projeto/:id/registrar",
-                              data={"csrf_token": self.csrf, "qr_token": self.qr_token},
+                              data={**self.scanner_fields, "qr_token": self.qr_token},
                               allow_redirects=False, catch_response=True) as response:
             if response.status_code != 302 or response.headers.get("Location") != self.project:
                 response.failure("Registro rejeitado")
