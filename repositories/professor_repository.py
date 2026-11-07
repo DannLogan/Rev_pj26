@@ -1,23 +1,4 @@
-from db import obter_conexao
-
-def _obter_id_edicao_por_nome(cursor, nome_edicao: str) -> int:
-    """Função utilitária interna robusta que aceita tanto o ID numérico quanto o Nome textual."""
-    if not nome_edicao:
-        return None
-        
-    nome_edicao_limpo = str(nome_edicao).strip()
-    
-    # Se o valor recebido for puramente numérico (o ID '7' vindo do banco), retorna ele mesmo
-    if nome_edicao_limpo.isdigit():
-        cursor.execute("SELECT id FROM edicoes WHERE id = %s", (int(nome_edicao_limpo),))
-        res = cursor.fetchone()
-        if res:
-            return res['id']
-            
-    # Caso receba o nome textual (fallback de segurança), busca o ID correspondente
-    cursor.execute("SELECT id FROM edicoes WHERE nome_edicao = %s", (nome_edicao_limpo,))
-    res = cursor.fetchone()
-    return res['id'] if res else None
+from db import bloquear_edicao_ativa, obter_conexao, resolver_id_edicao
 
 def buscar_aluno_por_qr_token(qr_token: str) -> dict:
     sql = """
@@ -42,7 +23,7 @@ def obter_projetos_supervisor(id_professor: int, id_edicao_ativa: str) -> list:
         GROUP BY p.id, p.nome_projeto
     """
     with obter_conexao() as cursor:
-        id_real_edicao = _obter_id_edicao_por_nome(cursor, id_edicao_ativa)
+        id_real_edicao = resolver_id_edicao(cursor, id_edicao_ativa)
         cursor.execute(sql, (id_real_edicao, id_professor))
         return cursor.fetchall()
 
@@ -51,7 +32,7 @@ def obter_projeto_por_id_e_professor(id_projeto: int, id_professor: int) -> dict
         SELECT p.id, p.nome_projeto 
         FROM projetos p 
         JOIN supervisores_projeto sp ON p.id = sp.id_projeto 
-        WHERE p.id = %s AND sp.id_professor = %s
+        WHERE p.id = %s AND sp.id_professor = %s AND p.ativo = 1
     """
     with obter_conexao() as cursor:
         cursor.execute(sql, (id_projeto, id_professor))
@@ -84,46 +65,52 @@ def obter_nome_edicao(id_edicao: str) -> str:
 def obter_inscricao_aluno(id_aluno: int, id_projeto: int, id_edicao: str) -> dict:
     sql = "SELECT presenca FROM inscricoes WHERE id_aluno = %s AND id_projeto = %s AND id_edicao = %s"
     with obter_conexao() as cursor:
-        id_real_edicao = _obter_id_edicao_por_nome(cursor, id_edicao)
+        id_real_edicao = resolver_id_edicao(cursor, id_edicao)
         cursor.execute(sql, (id_aluno, id_projeto, id_real_edicao))
         return cursor.fetchone()
 
-def registrar_presenca_aluno(id_aluno: int, id_projeto: int, id_edicao: str) -> str:
-    """
-    Tenta registrar a presença do aluno convertendo o nome da edição para ID.
-    Retorna:
-        'sucesso' - Se a presença foi computada agora.
-        'ja_presente' - Se o aluno já havia recebido presença antes.
-        'nao_inscrito' - Se o aluno não está cadastrado neste projeto/edição.
-    """
+def registrar_presenca_aluno(
+    id_aluno: int, id_projeto: int, id_edicao: str, id_professor: int
+) -> str:
     with obter_conexao() as cursor:
-        id_real_edicao = _obter_id_edicao_por_nome(cursor, id_edicao)
-        
-        # 1. Verifica se a inscrição existe e qual o estado atual dela
+        edicao_ativa = bloquear_edicao_ativa(cursor)
+        if edicao_ativa is None or edicao_ativa != id_edicao:
+            return 'edicao_indisponivel'
+
         cursor.execute("""
-            SELECT presenca FROM inscricoes 
-            WHERE id_aluno = %s AND id_projeto = %s AND id_edicao = %s
-        """, (id_aluno, id_projeto, id_real_edicao))
-        
-        inscricao = cursor.fetchone()
-        
-        if not inscricao:
-            return 'nao_inscrito'
-            
-        if inscricao['presenca'] == 1:
-            return 'ja_presente'
-            
-        # 2. Se chegou aqui, está inscrito e com presença pendente. Atualiza!
+            SELECT 1 FROM supervisores_projeto sp
+            JOIN projetos p ON p.id = sp.id_projeto
+            WHERE sp.id_professor = %s AND p.id = %s AND p.ativo = 1
+            FOR SHARE OF sp, p
+        """, (id_professor, id_projeto))
+        if cursor.fetchone() is None:
+            raise PermissionError("Projeto indisponível para o professor")
+
+        id_real_edicao = resolver_id_edicao(cursor, id_edicao)
+        if id_real_edicao is None:
+            return 'edicao_indisponivel'
+        chave = (id_aluno, id_projeto, id_real_edicao)
         cursor.execute("""
-            UPDATE inscricoes SET presenca = 1 
+            UPDATE inscricoes SET presenca = 1
             WHERE id_aluno = %s AND id_projeto = %s AND id_edicao = %s
-        """, (id_aluno, id_projeto, id_real_edicao))
-        return 'sucesso'
+              AND presenca IS DISTINCT FROM 1
+            RETURNING 1
+        """, chave)
+        if cursor.fetchone() is not None:
+            return 'sucesso'
+
+        cursor.execute("""
+            SELECT 1 FROM inscricoes
+            WHERE id_aluno = %s AND id_projeto = %s AND id_edicao = %s
+              AND presenca = 1
+        """, chave)
+        return 'ja_presente' if cursor.fetchone() is not None else 'nao_inscrito'
+
 
 def forçar_inscricao_com_presenca(id_aluno: int, id_projeto: int, id_edicao: str) -> None:
     sql = "INSERT INTO inscricoes (id_aluno, id_projeto, id_edicao, presenca) VALUES (%s, %s, %s, 1)"
     with obter_conexao() as cursor:
-        id_real_edicao = _obter_id_edicao_por_nome(cursor, id_edicao)
+        id_real_edicao = resolver_id_edicao(cursor, id_edicao)
         cursor.execute(sql, (id_aluno, id_projeto, id_real_edicao))
 
 def listar_alunos_inscritos_no_projeto(id_projeto: int, id_edicao: str) -> list:
@@ -144,6 +131,6 @@ def listar_alunos_inscritos_no_projeto(id_projeto: int, id_edicao: str) -> list:
         ORDER BY u.nome
     """
     with obter_conexao() as cursor:
-        id_real_edicao = _obter_id_edicao_por_nome(cursor, id_edicao)
+        id_real_edicao = resolver_id_edicao(cursor, id_edicao)
         cursor.execute(sql, (id_projeto, id_real_edicao))
         return cursor.fetchall()

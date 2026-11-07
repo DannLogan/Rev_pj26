@@ -13,6 +13,7 @@ DB_USER = os.environ.get("DB_USER", "postgres")
 DB_PASS = os.environ.get("DB_PASS")
 
 def inicializar_novo_banco_normalizado():
+    conn = None
     print("--- Iniciando Criação do Banco de Dados Atualizado na Virgínia ---")
     
     try:
@@ -130,31 +131,32 @@ def inicializar_novo_banco_normalizado():
         cursor.execute("SELECT chave FROM configuracoes WHERE chave = %s", ('edicao_ativa',))
         if not cursor.fetchone():
             cursor.execute("INSERT INTO configuracoes (chave, valor) VALUES (%s, %s)", ('edicao_ativa', str(id_edicao)))
-        else:
-            cursor.execute("UPDATE configuracoes SET valor = %s WHERE chave = %s", (str(id_edicao), 'edicao_ativa'))
-            
-        print(f"✔️ Edição '2026.1' (ID: {id_edicao}) definida como ativa.")
+        print(f"✔️ Edição '2026.1' (ID: {id_edicao}) disponível.")
 
         # 3. CRIAÇÃO DO ADMINISTRADOR MESTRE
         cursor.execute("SELECT id FROM usuarios WHERE login = %s", ('admin',))
         if not cursor.fetchone():
+            senha_bootstrap = os.environ.get("BOOTSTRAP_ADMIN_PASSWORD")
+            if not senha_bootstrap or len(senha_bootstrap) < 20:
+                raise RuntimeError("Defina BOOTSTRAP_ADMIN_PASSWORD com pelo menos 20 caracteres")
             admin_uuid = str(uuid.uuid4())
             # Deixamos o SERIAL gerar o ID do Admin naturalmente para manter a integridade das sequências
             cursor.execute('''
                 INSERT INTO usuarios (nome, login, senha, tipo, status_conta, ativo, chave_acesso)
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
-            ''', ('Administrador Sistema', 'admin', generate_password_hash('admin123'), 'admin', 'ativo', 1, admin_uuid))
+            ''', ('Administrador Sistema', 'admin', generate_password_hash(senha_bootstrap), 'admin', 'ativo', 1, admin_uuid))
             print("✔️ Usuário Administrador Mestre criado.")
         else:
             print("ℹ️ Administrador Mestre já existia no sistema.")
 
         conn.commit()
         cursor.close()
-        conn.close()
         print("\n--- NOVO BANCO DA VIRGÍNIA PRONTO PARA RODAR! ---")
 
-    except Exception as e:
-        print(f"\n❌ ERRO ao configurar o Supabase: {e}")
+    finally:
+        if conn is not None:
+            conn.close()
+
 
 if __name__ == '__main__':
     inicializar_novo_banco_normalizado()

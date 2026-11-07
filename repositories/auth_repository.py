@@ -10,10 +10,12 @@ def buscar_usuario_por_identificador(identificador: str) -> dict:
         LEFT JOIN professores p ON u.id = p.id_usuario
         WHERE (u.login = %s OR u.email_institucional = %s OR a.matricula = %s OR p.id_corporativo = %s) 
           AND u.ativo = 1
+        LIMIT 2
     """
     with obter_conexao() as cursor:
         cursor.execute(sql, (identificador, identificador, identificador, identificador))
-        return cursor.fetchone()
+        usuarios = cursor.fetchall()
+        return usuarios[0] if len(usuarios) == 1 else None
 
 def buscar_usuario_por_id(usuario_id: int) -> dict:
     sql = """
@@ -27,53 +29,24 @@ def buscar_usuario_por_id(usuario_id: int) -> dict:
         cursor.execute(sql, (usuario_id,))
         return cursor.fetchone()
 
-def verificar_duplicidade_cadastro(matricula: str, login: str, email: str) -> str:
-    with obter_conexao() as cursor:
-        cursor.execute("SELECT id_usuario FROM alunos WHERE matricula = %s", (matricula,))
-        if cursor.fetchone(): 
-            return "matricula"
-        
-        cursor.execute("SELECT id FROM usuarios WHERE login = %s", (login,))
-        if cursor.fetchone(): 
-            return "login"
-        
-        cursor.execute("SELECT id FROM usuarios WHERE email_institucional = %s", (email,))
-        if cursor.fetchone(): 
-            return "email"
-    return None
+def identificador_em_uso_no_cursor(cursor, identificador: str, usuario_id: int = 0) -> bool:
+    if not identificador:
+        return False
+    cursor.execute("""
+        SELECT 1 FROM usuarios u
+        LEFT JOIN alunos a ON a.id_usuario = u.id
+        LEFT JOIN professores p ON p.id_usuario = u.id
+        WHERE u.id <> %s AND %s IN (u.login, u.email_institucional, a.matricula, p.id_corporativo)
+        LIMIT 1
+    """, (usuario_id, identificador))
+    return cursor.fetchone() is not None
 
-def cadastrar_primeiro_acesso_aluno(matricula: str, login: str, nome: str, email: str, senha_bruta: str, pergunta: str, resposta_bruta: str, id_curso: int) -> None:
+
+def identificador_em_uso(identificador: str, usuario_id: int) -> bool:
     with obter_conexao() as cursor:
-        chave_unica = str(uuid.uuid4())
-        qr_token = str(uuid.uuid4())
-        
-        senha_hash = generate_password_hash(senha_bruta)
-        resposta_hash = generate_password_hash(resposta_bruta)
-        
-        # 1. Salva na tabela global de usuários
-        cursor.execute("""
-            INSERT INTO usuarios (nome, login, email_institucional, senha, tipo, status_conta, pergunta_seguranca, resposta_seguranca, chave_acesso, ativo)
-            VALUES (%s, %s, %s, %s, 'aluno', 'ativo', %s, %s, %s, 1) RETURNING id
-        """, (nome, login, email, senha_hash, pergunta, resposta_hash, chave_unica))
-        
-        # Dependendo de como seu 'obter_conexao' retorna o cursor (se dict ou tuple), ajustamos a captura do ID:
-        resultado = cursor.fetchone()
-        novo_id = resultado['id'] if isinstance(resultado, dict) else resultado[0]
-        
-        # 2. Salva na tabela de alunos
-        cursor.execute("""
-            INSERT INTO alunos (id_usuario, matricula, origem_cadastro, qr_token) 
-            VALUES (%s, %s, 'manual', %s)
-        """, (novo_id, matricula, qr_token))
-        
-        # 3. Vincula ao curso único (Usando ON CONFLICT para garantir a regra)
-        cursor.execute("""
-            INSERT INTO usuarios_cursos (id_aluno, id_curso) 
-            VALUES (%s, %s)
-            ON CONFLICT (id_aluno) 
-            DO UPDATE SET id_curso = EXCLUDED.id_curso
-        """, (novo_id, id_curso))
-            
+        return identificador_em_uso_no_cursor(cursor, identificador, usuario_id)
+
+
 def salvar_conclusao_cadastro(usuario_id: int, nome: str, email: str, login: str, senha_bruta: str, pergunta: str, resposta_bruta: str, cursos_ids: any) -> None:
     with obter_conexao() as cursor:
         senha_hash = generate_password_hash(senha_bruta)
@@ -142,3 +115,11 @@ def atualizar_senha_recuperada(usuario_id: int, nova_senha_bruta: str) -> None:
     sql = "UPDATE usuarios SET senha = %s WHERE id = %s"
     with obter_conexao() as cursor:
         cursor.execute(sql, (generate_password_hash(nova_senha_bruta), usuario_id))
+
+def buscar_estado_sessao(usuario_id: int) -> dict | None:
+    with obter_conexao() as cursor:
+        cursor.execute(
+            "SELECT tipo, status_conta, senha FROM usuarios WHERE id = %s AND ativo = 1",
+            (usuario_id,),
+        )
+        return cursor.fetchone()

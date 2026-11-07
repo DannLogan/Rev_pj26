@@ -1,4 +1,6 @@
 import secrets
+import hmac
+from flask import current_app
 from flask import request, session
 
 
@@ -14,3 +16,9 @@ def device_rate_key() -> str:
 
 def new_device_id() -> str:
     return secrets.token_urlsafe(32)
+
+
+def marca_sessao(senha_hash: str) -> str:
+    return hmac.digest(
+        current_app.secret_key.encode(), b"rev-pj26/session:" + senha_hash.encode(), "sha256"
+    ).hex()

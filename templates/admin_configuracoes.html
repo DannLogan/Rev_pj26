@@ -44,7 +44,7 @@
 <script>
 async function baixarRelatorio() {
     try {
-        const resposta = await fetch("{{ url_for('admin.exportar_presencas') }}");
+        const resposta = await fetch("{{ url_for('admin.exportar_presencas', formato='planilha') }}");
         if (!resposta.ok) throw new Error("Erro de resposta.");
         
         const contentDisposition = resposta.headers.get('content-disposition');

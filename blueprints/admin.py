@@ -1,16 +1,26 @@
 import csv
+from utils.csv_export import linha_para_planilha
 import io
 import re
 import uuid
+import secrets
 import math
 from io import StringIO
-from flask import Blueprint, render_template, session, redirect, url_for, flash, request, make_response
+from flask import Blueprint, render_template, session, redirect, url_for, flash, request, make_response, current_app
 from werkzeug.security import generate_password_hash
 from utils.decorators import requer_autenticacao, requer_perfil
 from repositories import admin_repository, auth_repository
 from db import obter_configuracao_global
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
+
+
+def mostrar_credenciais(credenciais, erros=0):
+    resposta = make_response(render_template(
+        'admin_credenciais.html', credenciais=credenciais, erros=erros
+    ))
+    resposta.headers['Cache-Control'] = 'private, no-store'
+    return resposta
 
 @admin_bp.route('/painel')
 @requer_autenticacao
@@ -22,18 +32,8 @@ def admin_painel():
 @requer_autenticacao
 @requer_perfil('admin')
 def desativar_projeto(projeto_id):
-    id_edicao = obter_configuracao_global('edicao_ativa')
-    
-    # 1. Validação de segurança em backend que criamos
-    if admin_repository.verificar_vinculos_projeto(projeto_id, id_edicao):
-        flash("Ação negada! Este projeto possui vínculos ativos com alunos ou professores.", "erro")
-        return redirect(url_for('admin.admin_gestao_projetos'))
-        
-    # 2. Mudado para o nome real do seu repositório
-    admin_repository.alternar_status_projeto(projeto_id, ativo=0)
-    
-    flash("Projeto desativado com sucesso.", "sucesso")
-    return redirect(url_for('admin.admin_gestao_projetos'))
+    return modificar_status_projeto(projeto_id, desativar=True)
+
 
 @admin_bp.route('/check-vinculos/<string:tipo>/<int:id>')
 @requer_autenticacao
@@ -79,32 +79,26 @@ def admin_gestao_projetos():
         admin_repository.salvar_projeto(nome, projeto_id)
         flash("Projeto processado com sucesso!", "sucesso")
 
-    projetos_cru = admin_repository.listar_todos_projetos()
-    
-    projetos = []
-    for p in projetos_cru:
-        proj_dict = dict(p) # Garante que aceita novas chaves
-        proj_dict['possui_vinculos'] = admin_repository.verificar_vinculos_projeto(proj_dict['id'], id_edicao)
-        projetos.append(proj_dict)
-
+    projetos = admin_repository.listar_projetos_com_vinculos(id_edicao)
     return render_template('admin_projetos.html', projetos=projetos)
 
 @admin_bp.route('/projetos/toggle/<int:id>', methods=['POST'])
 @requer_autenticacao
 @requer_perfil('admin')
 def admin_toggle_projeto(id):
-    id_edicao = obter_configuracao_global('edicao_ativa')
-    
-    if admin_repository.projeto_esta_ativo(id):
-        if admin_repository.verificar_vinculos_projeto(id, id_edicao):
-            flash("Operação negada! Este projeto possui alunos inscritos ou professores vinculados.", "erro")
-            return redirect(url_for('admin.admin_gestao_projetos'))
+    return modificar_status_projeto(id)
 
-        nome_proj = admin_repository.alternar_status_projeto(id)
-        if nome_proj:
-            flash(f"Status do projeto '{nome_proj}' modificado!", "sucesso")
-            
+
+def modificar_status_projeto(id_projeto, *, desativar=False):
+    resultado = admin_repository.alternar_status_projeto(id_projeto, desativar=desativar)
+    if resultado == 'vinculado':
+        flash("Operação negada. O projeto possui inscrições ou supervisores.", "erro")
+    elif resultado == 'sucesso':
+        flash("Status do projeto atualizado.", "sucesso")
+    else:
+        flash("Projeto não encontrado.", "erro")
     return redirect(url_for('admin.admin_gestao_projetos'))
+
 
 @admin_bp.route('/usuarios', methods=['GET'])
 @requer_autenticacao
@@ -152,12 +146,7 @@ def admin_gestao_usuarios():
 @requer_autenticacao
 @requer_perfil('admin')
 def admin_novo_usuario():
-    id_edicao_cru = obter_configuracao_global('edicao_ativa')
-    
-    try:
-        id_edicao = int(id_edicao_cru) if id_edicao_cru else None
-    except (ValueError, TypeError):
-        id_edicao = id_edicao_cru
+    id_edicao = obter_configuracao_global('edicao_ativa')
 
     if request.method == 'POST':
         nome = request.form.get('nome', '').strip()
@@ -167,7 +156,9 @@ def admin_novo_usuario():
         if tipo != 'aluno':
             matricula = ""
 
-        if not re.match(r'^[A-Za-zÀ-ÿ\s\d.-]+$', nome):
+        if tipo not in {'aluno', 'professor', 'admin'}:
+            flash("Perfil inválido.", "erro")
+        elif not re.match(r'^[A-Za-zÀ-ÿ\s\d.-]+$', nome):
             flash("Erro de validação: O nome contém caracteres inválidos.", "erro")
         elif tipo == 'aluno' and (not matricula.isdigit() or len(matricula) != 10):
             flash("Para alunos, a matrícula deve conter exatamente 10 dígitos numéricos.", "erro")
@@ -180,23 +171,20 @@ def admin_novo_usuario():
                 if existe_usuario:
                     flash("Esta credencial/Login já existe no sistema.", "erro")
                 else:
+                    senha_provisoria = secrets.token_urlsafe(18)
                     login_gerado = admin_repository.cadastrar_usuario_manual(
-                        nome, matricula, tipo, "", str(uuid.uuid4()),
+                        nome, matricula, tipo, generate_password_hash(senha_provisoria), str(uuid.uuid4()),
                         request.form.getlist('cursos_ids'), request.form.getlist('projetos_ids'),
-                        request.form.getlist('inscricoes_ids'), id_edicao
+                        request.form.getlist('inscricoes_ids'), request.form.get('edicao') or None
                     )
                     
-                    perfil_nome = "Administrador" if tipo == 'admin' else ("Professor" if tipo == 'professor' else "Aluno")
-                    
-                    flash(
-                        f"🎉 {perfil_nome} cadastrado com sucesso! "
-                        f"O login de acesso gerado foi: <strong>{login_gerado}</strong>. "
-                        f"A senha inicial é idêntica a este identificador.", 
-                        "sucesso"
-                    )
-                    return redirect(url_for('admin.admin_gestao_usuarios'))
-            except Exception as e:
-                flash(f"Erro ao salvar: {e}", "erro")
+                    return mostrar_credenciais([(login_gerado, senha_provisoria)])
+            except ValueError as erro:
+                flash(str(erro), "erro")
+                return redirect(request.path)
+            except Exception:
+                current_app.logger.exception("Erro ao salvar")
+                flash("Não foi possível salvar o usuário.", "erro")
                 
     cursos = admin_repository.listar_todos_cursos()
     
@@ -204,18 +192,13 @@ def admin_novo_usuario():
     projetos_filtrados = admin_repository.listar_projetos_ativos_por_edicao()
     
     # 🚀 CORREÇÃO DUPLA: Passa tanto projetos quanto projects para blindar o Jinja2 do HTML
-    return render_template('admin_form_usuario.html', cursos=cursos, projetos=projetos_filtrados, projects=projetos_filtrados, form_data=request.form, acao="Novo")
+    return render_template('admin_form_usuario.html', cursos=cursos, projetos=projetos_filtrados, projects=projetos_filtrados, form_data=request.form, acao="Novo", id_edicao=id_edicao)
 
 @admin_bp.route('/usuario/editar/<int:id_usuario>', methods=['GET', 'POST'])
 @requer_autenticacao
 @requer_perfil('admin')
 def editar_usuario(id_usuario):
-    id_edicao_cru = obter_configuracao_global('edicao_ativa')
-    
-    try:
-        id_edicao = int(id_edicao_cru) if id_edicao_cru else None
-    except (ValueError, TypeError):
-        id_edicao = id_edicao_cru
+    id_edicao = obter_configuracao_global('edicao_ativa')
         
     form_data = {}
     
@@ -234,6 +217,7 @@ def editar_usuario(id_usuario):
             id_curso_selecionado = form_data.get('curso_id')
             curso_final = int(id_curso_selecionado) if id_curso_selecionado else None
 
+            senha_provisoria = secrets.token_urlsafe(18) if form_data.get('reset_senha') == 'sim' else None
             admin_repository.atualizar_usuario_admin(
                 id_usuario=id_usuario,
                 nome=form_data.get('nome', '').strip(),
@@ -241,14 +225,20 @@ def editar_usuario(id_usuario):
                 cursos_ids=curso_final,
                 projetos_ids=form_data.getlist('projetos_ids'),
                 inscricoes_ids=form_data.getlist('inscricoes_ids'),
-                id_edicao=id_edicao,
-                reset_senha=form_data.get('reset_senha', 'nao'),
+                id_edicao=form_data.get('edicao') or None,
+                senha_provisoria_hash=generate_password_hash(senha_provisoria) if senha_provisoria else None,
                 identificador=identificador_valor
             )
+            if senha_provisoria:
+                return mostrar_credenciais([(identificador_valor, senha_provisoria)])
             flash("Usuário updated com sucesso!", "sucesso")
             return redirect(url_for('admin.admin_gestao_usuarios'))
-        except Exception as e:
-            flash(f"Erro ao atualizar usuário: {e}", "erro")
+        except ValueError as erro:
+            flash(str(erro), "erro")
+            return redirect(request.path)
+        except Exception:
+            current_app.logger.exception("Erro ao atualizar usuário")
+            flash("Não foi possível atualizar o usuário.", "erro")
 
     cursos = admin_repository.listar_todos_cursos()
     
@@ -270,6 +260,7 @@ def editar_usuario(id_usuario):
         lista_cursos_ids=lista_cursos_ids,
         lista_inscricoes_ids=lista_inscricoes_ids,
         lista_projetos_ids=lista_projetos_ids,
+        id_edicao=id_edicao,
         form_data=form_data
     )
         
@@ -297,7 +288,10 @@ def admin_importar():
             return redirect(request.url)
 
         try:
-            conteudo = arquivo.read()
+            conteudo = arquivo.read(2 * 1024 * 1024 + 1)
+            if len(conteudo) > 2 * 1024 * 1024:
+                flash("O CSV deve ter no máximo 2 MiB.", "erro")
+                return redirect(request.url)
             try: 
                 texto = conteudo.decode('utf-8-sig')
             except UnicodeDecodeError: 
@@ -309,16 +303,18 @@ def admin_importar():
                 flash('O arquivo está vazio.', 'erro')
                 return redirect(request.url)
 
-            if 'nome' in str(linhas[0]).lower() or 'matricula' in str(linhas[0]).lower() or 'ra' in str(linhas[0]).lower():
+            if linhas[0] and linhas[0][0].strip().casefold() in {'matricula', 'matrícula', 'ra'}:
                 linhas.pop(0)
+            if len(linhas) > 5000:
+                flash("O CSV deve ter no máximo 5.000 registros.", "erro")
+                return redirect(request.url)
 
             id_edicao = obter_configuracao_global('edicao_ativa')
-            sucessos, erros = admin_repository.processar_importacao_csv(linhas, id_edicao)
-            
-            flash(f"Importação executada! Sucessos: {sucessos} | Duplicados ou Inválidos: {erros}", "sucesso" if sucessos > 0 else "info")
-            return redirect(url_for('admin.admin_gestao_usuarios'))
+            credenciais, erros = admin_repository.processar_importacao_csv(linhas, id_edicao)
+            return mostrar_credenciais(credenciais, erros)
         except Exception as e:
-            flash(f"Falha de processamento: {e}", "erro")
+            current_app.logger.exception("Falha de processamento")
+            flash("Não foi possível processar o arquivo.", "erro")
 
     return render_template('admin_importar.html')
 
@@ -369,14 +365,15 @@ def exportar_presencas():
     escritor.writerow(['Nome do Aluno', 'Matrícula', 'Curso', 'Projeto', 'Edição', 'Status'])
 
     for l in relatorio:
-        escritor.writerow([
+        linha = [
             l['nome'], 
             l['matricula'], 
             l['nome_curso'] if l.get('nome_curso') else "Não Informado", 
             l['nome_projeto'], 
             l['nome_edicao'], 
             l['status']
-        ])
+        ]
+        escritor.writerow(linha_para_planilha(linha) if request.args.get("formato") == "planilha" else linha)
 
     resposta = make_response('\ufeff' + saida.getvalue())
     

@@ -1,4 +1,6 @@
 import csv
+from utils.csv_export import linha_para_planilha
+from flask import abort
 from io import StringIO
 from flask import Blueprint, render_template, session, redirect, url_for, flash, request, make_response, current_app
 from utils.decorators import requer_autenticacao, requer_perfil
@@ -8,6 +10,15 @@ from services.attendance_service import AttendanceService
 from extensions import limiter
 
 professor_bp = Blueprint('professor', __name__, url_prefix='/professor')
+
+
+def projeto_supervisionado(projeto_id):
+    projeto = professor_repository.obter_projeto_por_id_e_professor(
+        projeto_id, session['usuario_id']
+    )
+    if projeto is None:
+        abort(404)
+    return projeto
 
 @professor_bp.route('/dashboard')
 @requer_autenticacao
@@ -24,10 +35,7 @@ def professor_dashboard():
 @requer_autenticacao
 @requer_perfil('professor')
 def professor_projeto(projeto_id):
-    projeto = professor_repository.obter_projeto_por_id(projeto_id)
-    if not projeto:
-        flash("Projeto não encontrado ou inexistente.", "erro")
-        return redirect(url_for('professor.professor_dashboard'))
+    projeto = projeto_supervisionado(projeto_id)
         
     id_edicao = obter_configuracao_global('edicao_ativa')
     alunos = professor_repository.listar_alunos_inscritos_no_projeto(projeto_id, id_edicao)
@@ -37,29 +45,39 @@ def professor_projeto(projeto_id):
 @requer_autenticacao
 @requer_perfil('professor')
 def professor_scanner(projeto_id):
-    projeto = professor_repository.obter_projeto_por_id(projeto_id)
-    if not projeto:
-        flash("Projeto inválido.", "erro")
-        return redirect(url_for('professor.professor_dashboard'))
-    return render_template('professor_scanner.html', projeto=projeto, projeto_id=projeto_id)
+    projeto = projeto_supervisionado(projeto_id)
+    id_edicao = obter_configuracao_global('edicao_ativa')
+    if not id_edicao:
+        abort(409)
+    return render_template(
+        'professor_scanner.html', projeto=projeto, projeto_id=projeto_id, id_edicao=id_edicao
+    )
 
-@professor_bp.route('/projeto/<int:projeto_id>/registrar/<string:token_qrcode>')
+@professor_bp.route('/projeto/<int:projeto_id>/registrar', methods=['POST'])
 @limiter.limit(lambda: __import__('flask').current_app.config['QR_RATE_LIMIT'])
 @requer_autenticacao
 @requer_perfil('professor')
-def registrar_presenca(projeto_id, token_qrcode):
+def registrar_presenca(projeto_id):
+    projeto_supervisionado(projeto_id)
+    token_qrcode = request.form.get('qr_token', '')
+    id_edicao = request.form.get('edicao', '')
+    if not id_edicao or not token_qrcode or len(token_qrcode) > 255:
+        abort(400)
     try:
-        id_edicao = obter_configuracao_global('edicao_ativa')
         resultado = AttendanceService(professor_repository).register_from_qr(
-            token_qrcode, projeto_id, id_edicao
+            token_qrcode, projeto_id, id_edicao, session['usuario_id']
         )
         
-        if resultado['status'] == 'sucesso':
+        if resultado['status'] == 'edicao_indisponivel':
+            flash("A edição ativa mudou ou está indisponível. Reabra o scanner.", "erro")
+        elif resultado['status'] == 'sucesso':
             flash(f"Presença de {resultado['student']['nome']} computada com sucesso!", "sucesso")
         elif resultado['status'] == 'ja_presente':
             flash(f"Aviso: A presença de {resultado['student']['nome']} já havia sido registrada anteriormente.", "info")
         else:
             flash(f"Atenção: {resultado['student']['nome']} não possui inscrição ativa nesta atividade.", "erro")
+    except PermissionError:
+        abort(404)
     except ValueError:
         flash("QR Code inválido ou não pertence a um aluno ativo.", "erro")
     
@@ -73,10 +91,7 @@ def registrar_presenca(projeto_id, token_qrcode):
 @requer_autenticacao
 @requer_perfil('professor')
 def professor_exportar_csv(projeto_id):
-    projeto = professor_repository.obter_projeto_por_id(projeto_id)
-    if not projeto:
-        flash("Operação inválida.", "erro")
-        return redirect(url_for('professor.professor_dashboard'))
+    projeto = projeto_supervisionado(projeto_id)
         
     id_edicao = obter_configuracao_global('edicao_ativa')
     alunos = professor_repository.listar_alunos_inscritos_no_projeto(projeto_id, id_edicao)
@@ -88,13 +103,14 @@ def professor_exportar_csv(projeto_id):
 
     for a in alunos:
         status = 'Presente' if a['presenca'] == 1 else 'Pendente'
-        escritor.writerow([
+        linha = [
             a['matricula'], 
             a['nome'], 
             a.get('nome_curso', 'Não Informado'), 
             a.get('nome_edicao', 'Não Informada'), 
             status
-        ])
+        ]
+        escritor.writerow(linha_para_planilha(linha) if request.args.get("formato") == "planilha" else linha)
 
     resposta = make_response('\ufeff' + saida.getvalue())
     nome_arquivo = f"chamada_{str(projeto['nome_projeto']).lower().replace(' ', '_')}.csv"

@@ -1,4 +1,3 @@
-import os
 from flask import Flask
 from werkzeug.exceptions import HTTPException
 from dotenv import load_dotenv
@@ -19,15 +18,6 @@ def create_app(configuracao_teste=None):
 
     if configuracao_teste:
         app.config.update(configuracao_teste)
-
-    @app.before_request
-    def configure_session_lifetime():
-        session_type = __import__('flask').session.get('tipo')
-        app.permanent_session_lifetime = (
-            app.config['ADMIN_SESSION_LIFETIME']
-            if session_type == 'admin'
-            else app.config['COMMON_SESSION_LIFETIME']
-        )
 
     @app.after_request
     def set_device_cookie(response):
@@ -50,6 +40,25 @@ def create_app(configuracao_teste=None):
         app.logger.exception('Erro não tratado na aplicação', exc_info=error)
         return 'Ocorreu um erro interno. Tente novamente mais tarde.', 500
 
+    from utils.logging import configure_logging
+    configure_logging(app)
+
+    @app.get('/health')
+    def health():
+        return {"status": "ok"}
+
+    @app.get('/ready')
+    def readiness():
+        from db import obter_conexao
+
+        try:
+            with obter_conexao() as cursor:
+                cursor.execute("SELECT 1")
+        except Exception:
+            app.logger.exception("database_unavailable")
+            return {"status": "unavailable"}, 503
+        return {"status": "ok"}
+
     csrf = CSRFProtect(app)
     limiter.init_app(app)
     app.extensions['csrf'] = csrf
@@ -61,11 +70,8 @@ def create_app(configuracao_teste=None):
     app.register_blueprint(professor_bp)
     app.register_blueprint(admin_bp)
 
-    from utils.logging import configure_logging
-    configure_logging(app)
-
     return app
 
 if __name__ == '__main__':
     app = create_app()
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=False)
