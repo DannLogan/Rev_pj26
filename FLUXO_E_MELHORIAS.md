@@ -143,3 +143,12 @@ Execute docs/auditoria-supabase.sql no SQL Editor do projeto para coletar invent
 - Em **Environment**, configure `FLASK_ENV=production`, mantenha uma `SECRET_KEY` estável e configure `DATABASE_URL` com a URI PostgreSQL de **Connect → Session pooler** no Supabase, porta 5432. Use a senha atual do banco codificada na URI e inclua `sslmode=require`. A URL REST e as chaves da Data API são credenciais de outro tipo.
 - Em **Settings → Health Checks**, configure o caminho `/ready`. `/health` verifica o processo e `/ready` verifica também a conexão ao banco. O login público pode responder mesmo com o banco indisponível.
 - Após o deploy, confirme `/ready` com HTTP 200 e faça login. Se falhar, procure `database_unavailable` nos logs. O campo `database_error` categoriza a falha sem expor a mensagem da exceção: `authentication` para credencial, `pooler_user` para usuário ou projeto do pooler, `dns` para resolução de nome, `tls` para SSL, `timeout` ou `network` para conectividade.
+
+## Supervisão por projeto e curso
+
+1. Aplique `docs/supervisao-por-curso.sql` antes de implantar a versão. O script preserva os vínculos legados. Confirme que a credencial PostgreSQL do Flask pode acessar a tabela nova.
+2. Revise os vínculos de `supervisores_projeto` com a administração. Em **Usuários → Editar professor**, selecione os pares autorizados de projeto e curso. Um vínculo antigo sem curso não concede acesso na versão nova.
+3. Confira a chamada, o scanner e o CSV por curso. O CSV consolidado inclui somente os pares autorizados na edição ativa. Links antigos de chamada precisam ser reabertos a partir de **Meus projetos**.
+4. Para medir carga, informe também `LOAD_TEST_COURSE_ID`. O curso usado no teste deve corresponder ao vínculo do professor e ao cadastro do aluno.
+
+O escopo usa o curso cadastrado em `usuarios_cursos`. Uma transferência de curso altera a visibilidade na edição ativa. Inscrições sem curso ficam fora da chamada do professor até a administração corrigir o cadastro. Para congelar a turma no momento da inscrição, é necessária uma migração separada com uma fonte confiável para o histórico.

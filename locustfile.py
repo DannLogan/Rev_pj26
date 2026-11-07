@@ -30,7 +30,9 @@ class Professor(HttpUser):
     def on_start(self):
         if os.getenv("LOAD_TEST_ALLOW_WRITES") != "1":
             raise StopUser("Habilite escritas apenas no ambiente de teste")
-        self.project = f"/professor/projeto/{int(os.environ['LOAD_TEST_PROJECT_ID'])}"
+        projeto = int(os.environ['LOAD_TEST_PROJECT_ID'])
+        curso = int(os.environ['LOAD_TEST_COURSE_ID'])
+        self.project = f"/professor/projeto/{projeto}/curso/{curso}"
         self.qr_token = os.environ["LOAD_TEST_QR_TOKEN"]
         login = self.client.get("/login")
         with self.client.post("/login", data={

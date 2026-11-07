@@ -6,14 +6,16 @@
         <h1>Meus projetos</h1>
         <p class="portal-muted mb-0">Abra um projeto para acompanhar as inscrições e registrar presenças.</p>
     </div>
+    <a class="btn btn-outline-secondary" href="{{ url_for('professor.professor_exportar_geral') }}">Exportar todas as chamadas</a>
     <span class="portal-muted">Edição <strong class="portal-number">{{ edicao }}</strong></span>
 </header>
 <section class="portal-projects" aria-label="Projetos sob minha supervisão">
     {% for p in projetos %}
     <article class="portal-project">
         <h3>{{ p.nome_projeto }}</h3>
+        <span class="portal-muted">{{ p.nome_curso }}</span>
         <span class="portal-muted"><strong class="portal-number">{{ p.total_presentes }} / {{ p.total_inscritos }}</strong> presenças</span>
-        <a href="{{ url_for('professor.professor_projeto', projeto_id=p.id) }}" class="btn btn-acao-evento">Abrir chamada <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+        <a href="{{ url_for('professor.professor_projeto', projeto_id=p.id, curso_id=p.id_curso) }}" class="btn btn-acao-evento">Abrir chamada <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
     </article>
     {% else %}
     <div class="portal-empty">

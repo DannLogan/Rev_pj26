@@ -96,6 +96,15 @@ def inicializar_novo_banco_normalizado():
         );
 
         -- 🚀 TIMESTAMP DEFAULT: O banco calcula a data de inscrição automaticamente
+        CREATE TABLE IF NOT EXISTS supervisores_projeto_curso (
+            id_professor INTEGER NOT NULL REFERENCES professores(id_usuario),
+            id_projeto INTEGER NOT NULL REFERENCES projetos(id),
+            id_curso INTEGER NOT NULL REFERENCES cursos(id),
+            PRIMARY KEY (id_professor, id_projeto, id_curso)
+        );
+        ALTER TABLE supervisores_projeto_curso ENABLE ROW LEVEL SECURITY;
+        REVOKE ALL ON supervisores_projeto_curso FROM PUBLIC;
+
         CREATE TABLE IF NOT EXISTS inscricoes (
             id_aluno INTEGER NOT NULL REFERENCES usuarios(id),
             id_projeto INTEGER NOT NULL REFERENCES projetos(id),
