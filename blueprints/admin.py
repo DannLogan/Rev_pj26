@@ -1,7 +1,7 @@
 from services.supervision_service import parse_supervision_pairs
 import csv
 from utils.csv_export import linha_para_planilha
-import io
+from services.student_csv import read_student_csv
 import re
 import uuid
 import secrets
@@ -16,7 +16,7 @@ from db import obter_configuracao_global
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
 
-def mostrar_credenciais(credenciais, erros=0):
+def mostrar_credenciais(credenciais, erros=()):
     resposta = make_response(render_template(
         'admin_credenciais.html', credenciais=credenciais, erros=erros
     ))
@@ -321,27 +321,12 @@ def admin_importar():
             if len(conteudo) > 2 * 1024 * 1024:
                 flash("O CSV deve ter no máximo 2 MiB.", "erro")
                 return redirect(request.url)
-            try: 
-                texto = conteudo.decode('utf-8-sig')
-            except UnicodeDecodeError: 
-                texto = conteudo.decode('latin-1')
-
-            leitor = csv.reader(io.StringIO(texto), delimiter=';')
-            linhas = list(leitor)
-            if not linhas:
-                flash('O arquivo está vazio.', 'erro')
-                return redirect(request.url)
-
-            if linhas[0] and linhas[0][0].strip().casefold() in {'matricula', 'matrícula', 'ra'}:
-                linhas.pop(0)
-            if len(linhas) > 5000:
-                flash("O CSV deve ter no máximo 5.000 registros.", "erro")
-                return redirect(request.url)
-
-            id_edicao = obter_configuracao_global('edicao_ativa')
-            credenciais, erros = admin_repository.processar_importacao_csv(linhas, id_edicao)
+            linhas = read_student_csv(conteudo)
+            credenciais, erros = admin_repository.processar_importacao_csv(linhas)
             return mostrar_credenciais(credenciais, erros)
-        except Exception as e:
+        except ValueError as erro:
+            flash(str(erro), "erro")
+        except Exception:
             current_app.logger.exception("Falha de processamento")
             flash("Não foi possível processar o arquivo.", "erro")
 

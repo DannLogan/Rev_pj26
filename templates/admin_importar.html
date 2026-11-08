@@ -19,11 +19,12 @@
             <div class="alert alert-warning border border-warning p-3 rounded mb-4 shadow-sm">
                 <h6 class="fw-bold text-dark mb-2"><i class="bi bi-info-circle-fill text-warning"></i> Requisitos do Arquivo:</h6>
                 <ul class="mb-0 small text-secondary ps-3">
-                    <li>Extensão exigida: <strong>.csv</strong> com separador ponto e vírgula (<b>;</b>)</li>
-                    <li><b>Coluna 1:</b> Matrícula / RA (10 dígitos)</li>
+                    <li>Arquivo <strong>.csv</strong> separado por ponto e vírgula, vírgula ou tabulação</li>
+                    <li><b>Coluna 1:</b> Matrícula / RA (10 dígitos). Formate a coluna como texto para manter os zeros à esquerda.</li>
                     <li><b>Coluna 2:</b> Nome Completo</li>
                     <li><b>Coluna 3:</b> E-mail (Opcional)</li>
                 </ul>
+                <p class="small mt-2 mb-0">Cabeçalho opcional: <code>Matrícula / RA;Nome;E-mail</code></p>
             </div>
 
             <form action="{{ url_for('admin.admin_importar') }}" method="POST" enctype="multipart/form-data">

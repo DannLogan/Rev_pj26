@@ -410,26 +410,34 @@ def listar_projetos_com_vinculos(id_edicao_ativa: str) -> list:
         return cursor.fetchall()
 
 
-def processar_importacao_csv(linhas: list, id_edicao: str) -> tuple:
+def processar_importacao_csv(linhas: list[tuple[int, list[str]]]) -> tuple:
     credenciais = []
-    erros = 0
+    erros = []
     
     with obter_conexao() as cursor:
-        for linha in linhas:
-            if not linha or len(linha) < 2:
-                erros += 1
+        for numero, linha in linhas:
+            if len(linha) < 2 or any(campo.strip() for campo in linha[3:]):
+                erros.append((numero, "Use as colunas matrícula, nome e e-mail opcional."))
                 continue
                 
             matricula = str(linha[0]).strip()
             nome = str(linha[1]).strip()
-            email = str(linha[2]).strip() if len(linha) > 2 else f"{matricula}@substituir.edu.br"
+            email = (linha[2].strip().lower() or None) if len(linha) > 2 else None
             
-            if not matricula.isdigit() or len(matricula) != 10:
-                erros += 1
+            if not matricula.isascii() or not matricula.isdecimal() or len(matricula) != 10:
+                erros.append((numero, "A matrícula deve ter 10 dígitos. Confira os zeros à esquerda."))
+                continue
+
+            if not nome:
+                erros.append((numero, "Informe o nome do aluno."))
+                continue
+
+            if email and (email.count("@") != 1 or not all(email.split("@")) or any(ch.isspace() for ch in email)):
+                erros.append((numero, "Confira o e-mail ou deixe a coluna vazia."))
                 continue
 
             if identificador_em_uso_no_cursor(cursor, matricula) or identificador_em_uso_no_cursor(cursor, email):
-                erros += 1
+                erros.append((numero, "Matrícula ou e-mail já cadastrado."))
                 continue
 
             cursor.execute("SAVEPOINT importacao_linha")
@@ -456,7 +464,7 @@ def processar_importacao_csv(linhas: list, id_edicao: str) -> tuple:
 
             except IntegrityError:
                 cursor.execute("ROLLBACK TO SAVEPOINT importacao_linha")
-                erros += 1
+                erros.append((numero, "O registro conflita com dados cadastrados ou com uma regra do banco."))
             cursor.execute("RELEASE SAVEPOINT importacao_linha")
 
     return credenciais, erros
