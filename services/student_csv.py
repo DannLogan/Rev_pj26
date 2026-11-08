@@ -1,5 +1,6 @@
 import csv
 import io
+import re
 import unicodedata
 
 
@@ -43,6 +44,8 @@ def read_student_csv(content: bytes) -> list[tuple[int, list[str]]]:
                 first_record = False
                 if _is_header(row[0]):
                     continue
+            if len(row) >= 2:
+                row[1] = re.sub(r"^[\s,]+|[\s,]+$", "", row[1])
             rows.append((number, row))
             if len(rows) > 5000:
                 raise ValueError("O CSV deve ter no máximo 5.000 registros.")

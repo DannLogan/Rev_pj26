@@ -20,6 +20,12 @@ def test_importacao_aceita_diretiva_excel():
     assert read_student_csv(b"sep=,\nRA,Nome\n0000000123,Ana\n") == [(3, ["0000000123", "Ana"])]
 
 
+def test_importacao_remove_virgulas_nas_pontas_sem_alterar_as_internas():
+    assert read_student_csv(b'RA;Nome\n0000000123;", Silva, Ana ,"\n') == [
+        (2, ["0000000123", "Silva, Ana"])
+    ]
+
+
 def test_importacao_informa_csv_com_aspas_incompletas():
     with pytest.raises(ValueError, match="linha 2"):
         read_student_csv(b'RA;Nome\n0000000123;"Ana')
