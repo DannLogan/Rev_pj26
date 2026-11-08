@@ -3,7 +3,8 @@
 {% block content %}
 <h1>Credenciais provisórias</h1>
 <p>Entregue cada credencial somente ao titular, após conferir sua identidade. Esta tela é exibida no resultado da operação. A credencial será substituída na conclusão do cadastro.</p>
-<p>Geradas: {{ credenciais|length }}. Linhas rejeitadas: {{ erros }}.</p>
+<p>Geradas: {{ credenciais|length }}. Linhas rejeitadas: {{ erros|length }}.</p>
+{% if credenciais %}
 <table class="table">
     <thead><tr><th>Identificador</th><th>Senha provisória</th></tr></thead>
     <tbody>
@@ -12,5 +13,16 @@
         {% endfor %}
     </tbody>
 </table>
+{% endif %}
+{% if erros %}
+<h2 class="h5">O que corrigir no arquivo</h2>
+<ul>
+    {% for linha, motivo in erros %}
+    <li>Linha {{ linha }}: {{ motivo }}</li>
+    {% endfor %}
+</ul>
+<p>Depois de corrigir, envie novamente apenas as linhas rejeitadas.</p>
+<a class="btn btn-outline-secondary mb-3" href="{{ url_for('admin.admin_importar') }}">Importar outro arquivo</a>
+{% endif %}
 <a href="{{ url_for('admin.admin_gestao_usuarios') }}">Voltar para usuários</a>
 {% endblock %}
