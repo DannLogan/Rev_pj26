@@ -1,6 +1,5 @@
 import uuid
 from db import obter_conexao
-from werkzeug.security import generate_password_hash
 from utils.passwords import hash_password
 
 def buscar_usuario_por_identificador(identificador: str) -> dict:
@@ -49,41 +48,40 @@ def identificador_em_uso(identificador: str, usuario_id: int) -> bool:
         return identificador_em_uso_no_cursor(cursor, identificador, usuario_id)
 
 
-def salvar_conclusao_cadastro(usuario_id: int, nome: str, email: str, login: str, senha_bruta: str, pergunta: str, resposta_bruta: str, cursos_ids: any) -> None:
+def salvar_conclusao_cadastro(
+    usuario_id: int, nome: str, email: str, login: str, senha_bruta: str,
+    senha_anterior_hash: str, curso_id: int | None,
+) -> str | None:
+    senha_hash = hash_password(senha_bruta)
     with obter_conexao() as cursor:
-        senha_hash = hash_password(senha_bruta)
-        resposta_hash = generate_password_hash(resposta_bruta)
-        
         cursor.execute("""
-            UPDATE usuarios 
-            SET nome = %s, email_institucional = %s, login = %s, senha = %s, 
-                pergunta_seguranca = %s, resposta_seguranca = %s, status_conta = 'ativa' 
-            WHERE id = %s
-        """, (nome, email, login, senha_hash, pergunta, resposta_hash, usuario_id))
-        
-        cursor.execute("SELECT tipo FROM usuarios WHERE id = %s", (usuario_id,))
+            UPDATE usuarios
+            SET nome = %s, email_institucional = %s, login = %s, senha = %s,
+                status_conta = 'ativa'
+            WHERE id = %s AND senha = %s AND status_conta = 'pendente' AND ativo = 1
+            RETURNING tipo
+        """, (nome, email, login, senha_hash, usuario_id, senha_anterior_hash))
         usuario = cursor.fetchone()
-        
-        if usuario and usuario['tipo'] == 'aluno':
+        if usuario is None:
+            return None
+
+        if usuario['tipo'] == 'aluno':
             # Segurança adicional: Garante que contas antigas ou importadas ganhem um qr_token caso não possuam
             cursor.execute("SELECT qr_token FROM alunos WHERE id_usuario = %s", (usuario_id,))
             reg_aluno = cursor.fetchone()
             if reg_aluno and not reg_aluno['qr_token']:
                 cursor.execute("UPDATE alunos SET qr_token = %s WHERE id_usuario = %s", (str(uuid.uuid4()), usuario_id))
 
-            cursor.execute("DELETE FROM usuarios_cursos WHERE id_aluno = %s", (usuario_id,))
-            
-            # 🚀 BLINDAGEM DO TIPO: Se vier apenas um ID inteiro, transforma em lista
-            if isinstance(cursos_ids, int):
-                cursos_ids = [cursos_ids]
-            elif cursos_ids is None:
-                cursos_ids = []
-                
-            # Remove duplicatas com segurança e roda o laço sem erros
-            for c_id in list(set(cursos_ids)):
-                if c_id:
-                    cursor.execute("INSERT INTO usuarios_cursos (id_aluno, id_curso) VALUES (%s, %s)", (usuario_id, int(c_id)))
-                    
+            if curso_id is not None:
+                cursor.execute(
+                    "INSERT INTO usuarios_cursos (id_aluno, id_curso) VALUES (%s, %s) "
+                    "ON CONFLICT DO NOTHING",
+                    (usuario_id, curso_id),
+                )
+
+    return senha_hash
+
+
 def atualizar_perfil_usuario(usuario_id: int, nome: str, email: str, login: str = None, nova_senha_bruta: str = None) -> None:
     with obter_conexao() as cursor:
         campos = ["nome = %s", "email_institucional = %s"]
@@ -105,11 +103,6 @@ def buscar_cursos_usuario(usuario_id: int) -> list:
     with obter_conexao() as cursor:
         cursor.execute("SELECT id_curso FROM usuarios_cursos WHERE id_aluno = %s", (usuario_id,))
         return [row['id_curso'] for row in cursor.fetchall()]
-
-def atualizar_senha_recuperada(usuario_id: int, nova_senha_bruta: str) -> None:
-    sql = "UPDATE usuarios SET senha = %s WHERE id = %s"
-    with obter_conexao() as cursor:
-        cursor.execute(sql, (hash_password(nova_senha_bruta), usuario_id))
 
 def buscar_estado_sessao(usuario_id: int) -> dict | None:
     with obter_conexao() as cursor:
