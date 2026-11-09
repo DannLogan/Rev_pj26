@@ -1,16 +1,14 @@
+from hmac import compare_digest
 from time import time
 from utils.security import marca_sessao
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash, current_app
 from utils.passwords import verify_password
-from itsdangerous import URLSafeTimedSerializer
+from services.auth_service import validar_nova_senha
 from extensions import limiter
 from utils.decorators import requer_autenticacao
 from repositories import auth_repository, admin_repository
 
 auth_bp = Blueprint('auth', __name__)
-
-def obter_serializador():
-    return URLSafeTimedSerializer(current_app.secret_key)
 
 @auth_bp.route('/')
 @requer_autenticacao
@@ -76,7 +74,14 @@ def primeiro_acesso():
 @auth_bp.route('/concluir-cadastro', methods=['GET', 'POST'])
 @requer_autenticacao
 def concluir_cadastro():
+    if session['status_conta'] != 'pendente':
+        return redirect(url_for('auth.index'))
+
     usuario = auth_repository.buscar_usuario_por_id(session['usuario_id'])
+    if not usuario or not compare_digest(session['marca_sessao'], marca_sessao(usuario['senha'])):
+        session.clear()
+        return redirect(url_for('auth.login'))
+
     cursos = admin_repository.listar_todos_cursos()
     
     cursos_usuario = auth_repository.buscar_cursos_usuario(session['usuario_id'])
@@ -91,25 +96,14 @@ def concluir_cadastro():
         senha_form = form_data.get('senha', '')
         id_curso = cursos_usuario[0] if cursos_usuario else form_data.get('curso')
         
-        if len(senha_form) < 12 or len(senha_form.encode("utf-8")) > 72:
-            flash("A senha deve ter pelo menos 12 caracteres e no máximo 72 bytes em UTF-8.", "erro")
-            return render_template(
-                'concluir_cadastro.html', 
-                cursos=cursos, 
-                usuario=usuario, 
-                form_data=form_data, 
-                curso_atual_id=curso_atual_id,
-                erro_campo="senha"
-            )
-
-        if usuario['status_conta'] == 'pendente' and usuario['tipo'] in ('professor', 'admin') and senha_form == usuario['login']:
-            flash("Por segurança, a nova senha deve ser diferente do ID corporativo e da senha provisória.", "erro")
+        erro_senha = validar_nova_senha(usuario, senha_form, form_data.get('confirmar_senha'))
+        if erro_senha:
+            flash(erro_senha, "erro")
             return render_template(
                 'concluir_cadastro.html', cursos=cursos, usuario=usuario,
-                form_data=form_data, curso_atual_id=curso_atual_id,
-                erro_campo="senha"
+                form_data=form_data, curso_atual_id=curso_atual_id, erro_campo="senha"
             )
-            
+
         login_form = form_data.get('login', '').strip().lower().replace(" ", "")
         
         if usuario['status_conta'] == 'pendente' and login_form != usuario['login']:
@@ -124,19 +118,17 @@ def concluir_cadastro():
             flash("Erro de Validação: Você deve selecionar um curso.", "erro")
             return render_template('concluir_cadastro.html', cursos=cursos, usuario=usuario, form_data=form_data, curso_atual_id=curso_atual_id)
 
-        curso_final = int(id_curso) if (usuario['tipo'] == 'aluno' and id_curso) else None
+        curso_final = int(id_curso) if usuario['tipo'] == 'aluno' and not cursos_usuario else None
 
-        auth_repository.salvar_conclusao_cadastro(
+        senha_hash = auth_repository.salvar_conclusao_cadastro(
             session['usuario_id'], form_data.get('nome', '').strip(), form_data.get('email', '').strip(),
-            login_final, senha_form, form_data.get('pergunta'), 
-            form_data.get('resposta', '').strip().lower(), curso_final
+            login_final, senha_form, usuario['senha'], curso_final
         )
-        
-        estado = auth_repository.buscar_estado_sessao(session['usuario_id'])
-        if estado is None:
+        if senha_hash is None:
             session.clear()
             return redirect(url_for('auth.login'))
-        session['marca_sessao'] = marca_sessao(estado['senha'])
+
+        session['marca_sessao'] = marca_sessao(senha_hash)
         session['status_conta'] = 'ativa'
         session['nome'] = form_data.get('nome', '').strip()
         flash("Cadastro concluído com sucesso!", "sucesso")
@@ -144,7 +136,7 @@ def concluir_cadastro():
 
     return render_template('concluir_cadastro.html', cursos=cursos, usuario=usuario, form_data=request.form, curso_atual_id=curso_atual_id)
 
-@auth_bp.route('/recuperar', methods=['GET', 'POST'])
+@auth_bp.get('/recuperar')
 def recuperar_senha():
     if 'usuario_id' in session: 
         return redirect(url_for('auth.index'))

@@ -62,28 +62,12 @@
                 </div>
                 {% endif %}
 
-                <div class="p-3 bg-light border rounded mb-4">
-                    <h6 class="fw-bold text-primario-evento mb-3"><i class="bi bi-shield-fill-check"></i> Chaves de Recuperação</h6>
-                    <div class="mb-3">
-                        <label class="form-label small fw-bold text-secondary">Pergunta Secreta</label>
-                        <select name="pergunta" required class="form-select">
-                            <option value="">-- Selecione uma pergunta --</option>
-                            <option value="animal" {% if form_data.get('pergunta') == 'animal' %}selected{% endif %}>Qual o nome do seu primeiro animal de estimação?</option>
-                            <option value="escola" {% if form_data.get('pergunta') == 'escola' %}selected{% endif %}>Qual o nome da sua escola no ensino fundamental?</option>
-                            <option value="cidade" {% if form_data.get('pergunta') == 'cidade' %}selected{% endif %}>Em qual cidade você nasceu?</option>
-                            <option value="amigo" {% if form_data.get('pergunta') == 'amigo' %}selected{% endif %}>Qual o nome do seu melhor amigo de infância?</option>
-                        </select>
-                    </div>
-                    {{ ui.campo_input(nome="resposta", label="Resposta Secreta", valor=form_data.get('resposta', '')) }}
-                </div>
-
-                {% if usuario.tipo in ['professor', 'admin'] and usuario.status_conta == 'pendente' %}
                 <div class="alert alert-warning small">
                     <i class="bi bi-shield-exclamation me-1"></i>
-                    Sua senha provisória é igual ao seu ID corporativo. Defina uma nova senha diferente do ID para concluir o primeiro acesso.
+                    Você entrou com uma senha provisória. Defina uma nova senha para acessar o portal.
                 </div>
-                {% endif %}
-                {{ ui.campo_input(nome="senha", label="Defina sua Nova Senha (Mínimo 12 caracteres)", tipo="password", erro_campo=erro_campo) }}
+                {{ ui.campo_input(nome="senha", label="Nova senha (mínimo 12 caracteres)", tipo="password", erro_campo=erro_campo) }}
+                {{ ui.campo_input(nome="confirmar_senha", label="Confirme a nova senha", tipo="password") }}
 
                 {{ ui.botao(texto="CONCLUIR CADASTRO", tipo="submit", estilo="acao-evento w-100 py-3 fw-bold fs-5 mt-2") }}
             </form>
